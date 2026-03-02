@@ -7,7 +7,7 @@
 var express = require("express");
 var http    = require("http");
 var easyrtc = require("open-easyrtc");
-var io      = require("socket.io");
+var { Server } = require("socket.io");
 
 // --- Criar a aplicação e o servidor ---
 var app    = express();
@@ -18,7 +18,7 @@ var server = http.createServer(app);
 app.use(express.static("public"));
 
 // --- Configurar Socket.IO (comunicação em tempo real) ---
-var socketServer = io.listen(server);
+var socketServer = new Server(server);
 
 // --- Iniciar o EasyRTC (sinalização para ligações entre browsers) ---
 easyrtc.listen(app, socketServer, null, function(err, rtcRef) {
