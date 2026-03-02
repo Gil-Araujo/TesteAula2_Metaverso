@@ -22,6 +22,15 @@
       window.module = __savedModule;
       console.log("[DEBUG] window.io:", typeof window.io, window.io ? "OK" : "MISSING");
       console.log("[DEBUG] window.easyrtc:", typeof window.easyrtc, window.easyrtc ? "OK" : "MISSING");
+      // Teste direto de conexão socket.io
+      var testSocket = io();
+      testSocket.on("connect", function() {
+        console.log("[DEBUG] Socket.IO CONNECTED! id:", testSocket.id);
+        testSocket.disconnect();
+      });
+      testSocket.on("connect_error", function(err) {
+        console.log("[DEBUG] Socket.IO CONNECT ERROR:", err.message);
+      });
     </script>
 
     <!-- Event-Set: interações declarativas sem JavaScript -->
