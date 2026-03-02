@@ -1,0 +1,13 @@
+{
+  "name": "aula2-metaverso",
+  "version": "1.0.0",
+  "description": "Aula 2 - Integração no Metaverso (VR Multiplayer para Medicina)",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "open-easyrtc": "^2.0.15",
+    "socket.io": "~2.5.0"
+  }
+}

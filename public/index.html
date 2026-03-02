@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <title>Aula 2 - Metaverso VR Medicina</title>
+
+    <!-- A-Frame: motor 3D (versão compatível com NAF) -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+    <!-- Networked A-Frame (NAF): multiplayer em VR -->
+    <script src="https://cdn.jsdelivr.net/gh/networked-aframe/networked-aframe@0.12.1/dist/networked-aframe.min.js"></script>
+
+    <!-- EasyRTC + Socket.IO: servidos automaticamente pelo servidor Node.js -->
+    <script src="/easyrtc/easyrtc.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- Event-Set: interações declarativas sem JavaScript -->
+    <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
+
+    <script>
+      // =====================================================
+      //  CONFIGURAÇÃO MULTIPLAYER (mínimo de JavaScript)
+      //  ~30 linhas, bem comentadas
+      // =====================================================
+
+      // --- Cores aleatórias para avatares ---
+      // Cada aluno recebe uma cor diferente ao entrar
+      var AVATAR_COLORS = [
+        "#E74C3C", "#3498DB", "#2ECC71", "#F39C12",
+        "#9B59B6", "#1ABC9C", "#E67E22", "#FF6B9D"
+      ];
+
+      // --- Esquema do avatar: o que sincronizar na rede ---
+      // Posição e rotação para que todos vejam onde os outros estão
+      NAF.schemas.add({
+        template: "#avatar-template",
+        components: [
+          "position",
+          "rotation",
+          {
+            selector: ".head",
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      // --- Esquema dos objetos partilhados ---
+      // Posição e cor sincronizados — quando alguém muda, TODOS veem
+      NAF.schemas.add({
+        template: "#shared-box-template",
+        components: [
+          "position",
+          "rotation",
+          {
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      NAF.schemas.add({
+        template: "#shared-sphere-template",
+        components: [
+          "position",
+          {
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      // --- Componente: cor aleatória no avatar ao ligar ---
+      AFRAME.registerComponent("random-color", {
+        init: function () {
+          var color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+          this.el.setAttribute("material", "color", color);
+        }
+      });
+
+      // --- Componente: mudar cor partilhada ao clicar ---
+      // Quando um aluno clica, TODOS veem a mudança de cor
+      AFRAME.registerComponent("shared-color", {
+        init: function () {
+          var colors = ["#4CC3D9", "#9B59B6", "#00FFFF", "#FF6B6B", "#FFD700", "#2ECC71", "#E74C3C"];
+          var index = 0;
+          var el = this.el;
+
+          el.addEventListener("click", function () {
+            // Pedir posse do objeto em rede para poder modificá-lo
+            NAF.utils.getNetworkedEntity(el).then(function (networkedEl) {
+              NAF.utils.takeOwnership(networkedEl);
+              index = (index + 1) % colors.length;
+              el.setAttribute("material", "color", colors[index]);
+            });
+          });
+        }
+      });
+    </script>
+
+    <style>
+      #overlay {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 16px 22px;
+        border-radius: 12px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        max-width: 360px;
+        line-height: 1.6;
+        pointer-events: none;
+      }
+      #overlay h3 { margin: 0 0 8px 0; font-size: 17px; }
+      #overlay ul { margin: 0; padding-left: 18px; }
+      #overlay li { margin-bottom: 5px; }
+      #overlay .highlight { color: #FFD700; font-weight: bold; }
+    </style>
+  </head>
+
+  <body>
+    <!-- ================================================ -->
+    <!--         OVERLAY — instruções no ecrã             -->
+    <!-- ================================================ -->
+    <div id="overlay">
+      <h3>Metaverso VR — Medicina</h3>
+      <ul>
+        <li><b>Mover:</b> W A S D &nbsp;|&nbsp; <b>Olhar:</b> arrastar rato</li>
+        <li><b>Interagir:</b> aponta + clica (PC) ou espera 1.5s (VR)</li>
+        <li class="highlight">As esferas coloridas são os outros alunos!</li>
+        <li>Clica nos cubos/esfera — TODOS veem a mudança</li>
+        <li>Coração: aponta para ver "Heart"</li>
+      </ul>
+    </div>
+
+    <!-- ================================================ -->
+    <!--              CENA MULTIPLAYER                    -->
+    <!-- ================================================ -->
+    <!--
+      networked-scene: configura a ligação ao servidor
+        room: todos na mesma "sala" veem-se uns aos outros
+        adapter: easyrtc (protocolo de comunicação)
+    -->
+    <a-scene
+      networked-scene="
+        room: aula-medicina;
+        adapter: easyrtc;
+        connectOnLoad: true;
+        debug: false;
+      "
+    >
+      <!-- ============================================ -->
+      <!--     ASSETS + TEMPLATES MULTIPLAYER           -->
+      <!-- ============================================ -->
+      <a-assets>
+        <!-- === TEMPLATE DO AVATAR ===
+             O que os OUTROS alunos veem de nós:
+             uma esfera colorida (cabeça) + nome flutuante -->
+        <template id="avatar-template">
+          <a-entity class="avatar">
+            <a-sphere
+              class="head"
+              scale="0.35 0.35 0.35"
+              material="flatShading: true"
+              random-color
+            ></a-sphere>
+            <a-entity
+              text="value: Aluno; align: center; color: white; width: 3"
+              position="0 0.5 0"
+            ></a-entity>
+          </a-entity>
+        </template>
+
+        <!-- === TEMPLATE CUBO PARTILHADO ===
+             Objeto que qualquer aluno pode clicar e TODOS veem -->
+        <template id="shared-box-template">
+          <a-entity
+            geometry="primitive: box; width: 1.2; height: 1.2; depth: 1.2"
+            material="color: #4CC3D9"
+            class="clickable"
+            shared-color
+          ></a-entity>
+        </template>
+
+        <!-- === TEMPLATE ESFERA PARTILHADA === -->
+        <template id="shared-sphere-template">
+          <a-entity
+            geometry="primitive: sphere; radius: 0.8"
+            material="color: #EF2D5E"
+            class="clickable"
+            shared-color
+          ></a-entity>
+        </template>
+
+        <!-- === FICHEIROS DA CENA === -->
+        <img
+          id="pano"
+          src="2019_07_05_Armazones_Inside_Crater_Pano_24mm_EQ_CC.jpg"
+          crossorigin="anonymous"
+        />
+        <a-asset-item id="heart-obj" src="assets/heart/HumanHeart_OBJ.obj"></a-asset-item>
+        <a-asset-item id="heart-mtl" src="assets/heart/HumanHeart_OBJ.mtl"></a-asset-item>
+      </a-assets>
+
+      <!-- ============================================ -->
+      <!--              CENÁRIO                         -->
+      <!-- ============================================ -->
+
+      <!-- SKY: panorama 360° -->
+      <a-sky src="#pano" rotation="0 -90 0"></a-sky>
+
+      <!-- LUZ -->
+      <a-entity light="type: ambient; intensity: 0.7"></a-entity>
+      <a-entity light="type: directional; intensity: 1.1" position="2 4 1"></a-entity>
+      <a-entity light="type: directional; intensity: 0.5" position="-2 2 -1"></a-entity>
+
+      <!-- CHÃO -->
+      <a-plane
+        position="0 0 0"
+        rotation="-90 0 0"
+        width="30"
+        height="30"
+        color="#5B8C7A"
+      ></a-plane>
+
+      <!-- ============================================ -->
+      <!--    OBJETOS PARTILHADOS (MULTIPLAYER)         -->
+      <!--    Clicar muda a cor para TODOS os alunos    -->
+      <!-- ============================================ -->
+
+      <!-- Cubo partilhado — esquerda -->
+      <a-entity
+        networked="template:#shared-box-template; persistent:true; networkId:cubo-esq; owner:scene"
+        position="-4 0.7 -5"
+        rotation="0 30 0"
+      ></a-entity>
+
+      <!-- Cubo partilhado — direita -->
+      <a-entity
+        networked="template:#shared-box-template; persistent:true; networkId:cubo-dir; owner:scene"
+        position="4 0.7 -5"
+        rotation="0 -30 0"
+      ></a-entity>
+
+      <!-- Esfera partilhada — centro-atrás -->
+      <a-entity
+        networked="template:#shared-sphere-template; persistent:true; networkId:esfera-part; owner:scene"
+        position="0 1.5 -7"
+      ></a-entity>
+
+      <!-- ============================================ -->
+      <!--          CORAÇÃO 3D + LABEL                  -->
+      <!-- ============================================ -->
+
+      <!-- Label "Heart" — aparece ao apontar -->
+      <a-entity
+        id="heart-label"
+        text="value: Heart; align: center; color: #FFFFFF; width: 4"
+        position="0 2.8 -3"
+        visible="false"
+      ></a-entity>
+
+      <!-- Coração 3D — rotação contínua + label ao hover -->
+      <a-entity
+        id="heart"
+        class="clickable"
+        obj-model="obj: #heart-obj; mtl: #heart-mtl"
+        material="side: double"
+        position="0 1.5 -3"
+        rotation="0 180 0"
+        scale="0.12 0.12 0.12"
+        animation="property: rotation; to: 0 540 0;
+                   loop: true; dur: 12000; easing: linear"
+        event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
+        event-set__leave="_event: mouseleave; _target: #heart-label; visible: false"
+      ></a-entity>
+
+      <!-- ============================================ -->
+      <!--     DECORAÇÃO / AMBIENTE MÉDICO              -->
+      <!-- ============================================ -->
+
+      <!-- Cilindro decorativo — pilar esquerdo -->
+      <a-cylinder
+        position="-6 1.5 -8"
+        radius="0.3"
+        height="3"
+        color="#CCCCCC"
+        material="metalness: 0.6; roughness: 0.3"
+      ></a-cylinder>
+
+      <!-- Cilindro decorativo — pilar direito -->
+      <a-cylinder
+        position="6 1.5 -8"
+        radius="0.3"
+        height="3"
+        color="#CCCCCC"
+        material="metalness: 0.6; roughness: 0.3"
+      ></a-cylinder>
+
+      <!-- Plano de fundo — "parede" atrás dos objetos -->
+      <a-plane
+        position="0 2 -9"
+        width="14"
+        height="5"
+        color="#1a1a2e"
+        material="opacity: 0.4; transparent: true; shader: flat"
+      ></a-plane>
+
+      <!-- Texto de boas-vindas no fundo -->
+      <a-entity
+        text="value: Laboratorio Virtual de Medicina; align: center;
+              color: #FFFFFF; width: 8; font: roboto"
+        position="0 4 -8.9"
+      ></a-entity>
+
+      <!-- ============================================ -->
+      <!--    JOGADOR: câmara + retículo + avatar       -->
+      <!-- ============================================ -->
+      <!--
+        networked: liga este jogador à rede
+          template: usa o avatar-template (esfera colorida)
+          attachTemplateToLocal: false → NÃO mostra o avatar a NÓS
+            (nós vemos pela câmara, os outros veem a nossa esfera)
+      -->
+      <a-entity
+        id="player"
+        networked="template:#avatar-template; attachTemplateToLocal:false"
+        camera
+        wasd-controls
+        look-controls
+        position="0 1.6 5"
+      >
+        <!-- Retículo (cursor) -->
+        <a-entity
+          cursor="fuse: true; fuseTimeout: 1500"
+          raycaster="objects: .clickable"
+          position="0 0 -1"
+          geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
+          material="color: #FFFFFF; shader: flat; transparent: true; opacity: 0.8"
+          animation__fusing="property: scale; from: 1 1 1; to: 0.5 0.5 0.5;
+                             dur: 1500; startEvents: fusing;
+                             easing: easeInCubic"
+          animation__reset="property: scale; to: 1 1 1;
+                            dur: 200; startEvents: mouseleave"
+        ></a-entity>
+      </a-entity>
+
+    </a-scene>
+  </body>
+</html>
