@@ -13,7 +13,10 @@
     <!-- Socket.IO + EasyRTC: servidos automaticamente pelo servidor Node.js -->
     <!-- IMPORTANTE: socket.io DEVE carregar ANTES do easyrtc -->
     <script src="/socket.io/socket.io.js"></script>
+    <!-- Workaround: evitar que o UMD do easyrtc use o caminho CommonJS -->
+    <script>var __savedModule = window.module; window.module = undefined;</script>
     <script src="/easyrtc/easyrtc.js"></script>
+    <script>window.module = __savedModule;</script>
 
     <!-- Event-Set: interações declarativas sem JavaScript -->
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
@@ -21,7 +24,6 @@
     <script>
       // =====================================================
       //  CONFIGURAÇÃO MULTIPLAYER (mínimo de JavaScript)
-      //  ~30 linhas, bem comentadas
       // =====================================================
 
       // --- Cores aleatórias para avatares ---
@@ -30,46 +32,6 @@
         "#E74C3C", "#3498DB", "#2ECC71", "#F39C12",
         "#9B59B6", "#1ABC9C", "#E67E22", "#FF6B9D"
       ];
-
-      // --- Esquema do avatar: o que sincronizar na rede ---
-      // Posição e rotação para que todos vejam onde os outros estão
-      NAF.schemas.add({
-        template: "#avatar-template",
-        components: [
-          "position",
-          "rotation",
-          {
-            selector: ".head",
-            component: "material",
-            property: "color"
-          }
-        ]
-      });
-
-      // --- Esquema dos objetos partilhados ---
-      // Posição e cor sincronizados — quando alguém muda, TODOS veem
-      NAF.schemas.add({
-        template: "#shared-box-template",
-        components: [
-          "position",
-          "rotation",
-          {
-            component: "material",
-            property: "color"
-          }
-        ]
-      });
-
-      NAF.schemas.add({
-        template: "#shared-sphere-template",
-        components: [
-          "position",
-          {
-            component: "material",
-            property: "color"
-          }
-        ]
-      });
 
       // --- Componente: cor aleatória no avatar ao ligar ---
       AFRAME.registerComponent("random-color", {
@@ -140,11 +102,6 @@
     <!-- ================================================ -->
     <!--              CENA MULTIPLAYER                    -->
     <!-- ================================================ -->
-    <!--
-      networked-scene: configura a ligação ao servidor
-        room: todos na mesma "sala" veem-se uns aos outros
-        adapter: easyrtc (protocolo de comunicação)
-    -->
     <a-scene
       networked-scene="
         room: aula-medicina;
@@ -157,9 +114,7 @@
       <!--     ASSETS + TEMPLATES MULTIPLAYER           -->
       <!-- ============================================ -->
       <a-assets>
-        <!-- === TEMPLATE DO AVATAR ===
-             O que os OUTROS alunos veem de nós:
-             uma esfera colorida (cabeça) + nome flutuante -->
+        <!-- === TEMPLATE DO AVATAR === -->
         <template id="avatar-template">
           <a-entity class="avatar">
             <a-sphere
@@ -175,8 +130,7 @@
           </a-entity>
         </template>
 
-        <!-- === TEMPLATE CUBO PARTILHADO ===
-             Objeto que qualquer aluno pode clicar e TODOS veem -->
+        <!-- === TEMPLATE CUBO PARTILHADO === -->
         <template id="shared-box-template">
           <a-entity
             geometry="primitive: box; width: 1.2; height: 1.2; depth: 1.2"
@@ -320,12 +274,6 @@
       <!-- ============================================ -->
       <!--    JOGADOR: câmara + retículo + avatar       -->
       <!-- ============================================ -->
-      <!--
-        networked: liga este jogador à rede
-          template: usa o avatar-template (esfera colorida)
-          attachTemplateToLocal: false → NÃO mostra o avatar a NÓS
-            (nós vemos pela câmara, os outros veem a nossa esfera)
-      -->
       <a-entity
         id="player"
         networked="template:#avatar-template; attachTemplateToLocal:false"
@@ -350,5 +298,49 @@
       </a-entity>
 
     </a-scene>
+
+    <!-- ================================================ -->
+    <!--  SCHEMAS NAF — devem ser registados DEPOIS da    -->
+    <!--  <a-scene> existir no DOM (templates disponíveis)-->
+    <!-- ================================================ -->
+    <script>
+      // --- Esquema do avatar: o que sincronizar na rede ---
+      NAF.schemas.add({
+        template: "#avatar-template",
+        components: [
+          "position",
+          "rotation",
+          {
+            selector: ".head",
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      // --- Esquema dos objetos partilhados ---
+      NAF.schemas.add({
+        template: "#shared-box-template",
+        components: [
+          "position",
+          "rotation",
+          {
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      NAF.schemas.add({
+        template: "#shared-sphere-template",
+        components: [
+          "position",
+          {
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+    </script>
   </body>
 </html>
