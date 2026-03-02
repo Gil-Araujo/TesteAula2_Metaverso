@@ -10,9 +10,10 @@
     <!-- Networked A-Frame (NAF): multiplayer em VR -->
     <script src="https://cdn.jsdelivr.net/gh/networked-aframe/networked-aframe@0.12.1/dist/networked-aframe.min.js"></script>
 
-    <!-- EasyRTC + Socket.IO: servidos automaticamente pelo servidor Node.js -->
-    <script src="/easyrtc/easyrtc.js"></script>
+    <!-- Socket.IO + EasyRTC: servidos automaticamente pelo servidor Node.js -->
+    <!-- IMPORTANTE: socket.io DEVE carregar ANTES do easyrtc -->
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/easyrtc/easyrtc.js"></script>
 
     <!-- Event-Set: interações declarativas sem JavaScript -->
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
