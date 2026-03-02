@@ -18,7 +18,10 @@ var server = http.createServer(app);
 app.use(express.static("public"));
 
 // --- Configurar Socket.IO (comunicação em tempo real) ---
-var socketServer = new Server(server);
+var socketServer = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+  allowEIO3: true
+});
 
 // --- Iniciar o EasyRTC (sinalização para ligações entre browsers) ---
 easyrtc.listen(app, socketServer, null, function(err, rtcRef) {
