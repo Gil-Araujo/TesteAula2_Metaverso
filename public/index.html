@@ -11,10 +11,12 @@
     <script src="https://cdn.jsdelivr.net/gh/networked-aframe/networked-aframe@0.12.1/dist/networked-aframe.min.js"></script>
 
     <!-- Socket.IO + EasyRTC: servidos automaticamente pelo servidor Node.js -->
-    <!-- IMPORTANTE: socket.io DEVE carregar ANTES do easyrtc -->
-    <script src="/socket.io/socket.io.js"></script>
-    <!-- Workaround: evitar que o UMD do easyrtc use o caminho CommonJS -->
+    <!-- Workaround: A-Frame/NAF definem window.module, o que faz os UMD
+         do socket.io e easyrtc usarem CommonJS em vez de browser globals.
+         Removemos temporariamente para garantir que window.io e window.easyrtc
+         são definidos corretamente. -->
     <script>var __savedModule = window.module; window.module = undefined;</script>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="/easyrtc/easyrtc.js"></script>
     <script>window.module = __savedModule;</script>
 
@@ -50,12 +52,14 @@
           var el = this.el;
 
           el.addEventListener("click", function () {
-            // Pedir posse do objeto em rede para poder modificá-lo
-            NAF.utils.getNetworkedEntity(el).then(function (networkedEl) {
-              NAF.utils.takeOwnership(networkedEl);
-              index = (index + 1) % colors.length;
-              el.setAttribute("material", "color", colors[index]);
-            });
+            index = (index + 1) % colors.length;
+            el.setAttribute("material", "color", colors[index]);
+            // Se NAF estiver ligado, sincronizar para todos
+            if (NAF.connection && NAF.connection.isConnected()) {
+              NAF.utils.getNetworkedEntity(el).then(function (networkedEl) {
+                NAF.utils.takeOwnership(networkedEl);
+              }).catch(function () {});
+            }
           });
         }
       });
