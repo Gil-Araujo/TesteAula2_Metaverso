@@ -30,7 +30,9 @@ easyrtc.listen(app, socketServer, null, function(err, rtcRef) {
 });
 
 // --- Iniciar o servidor ---
-var PORT = 3001;
+// process.env.PORT é usado pelo Render.com (hosting online)
+// 3001 é usado quando corre localmente no PC do formador
+var PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", function() {
   console.log("");
   console.log("=============================================");
