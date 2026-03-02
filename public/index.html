@@ -18,20 +18,7 @@
     <script>var __savedModule = window.module; window.module = undefined;</script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/easyrtc/easyrtc.js"></script>
-    <script>
-      window.module = __savedModule;
-      console.log("[DEBUG] window.io:", typeof window.io, window.io ? "OK" : "MISSING");
-      console.log("[DEBUG] window.easyrtc:", typeof window.easyrtc, window.easyrtc ? "OK" : "MISSING");
-      // Teste direto de conexão socket.io
-      var testSocket = io();
-      testSocket.on("connect", function() {
-        console.log("[DEBUG] Socket.IO CONNECTED! id:", testSocket.id);
-        testSocket.disconnect();
-      });
-      testSocket.on("connect_error", function(err) {
-        console.log("[DEBUG] Socket.IO CONNECT ERROR:", err.message);
-      });
-    </script>
+    <script>window.module = __savedModule;</script>
 
     <!-- Event-Set: interações declarativas sem JavaScript -->
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
