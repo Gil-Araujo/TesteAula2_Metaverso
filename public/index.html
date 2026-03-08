@@ -4,57 +4,88 @@
     <meta charset="utf-8" />
     <title>Aula 2 - Metaverso VR Medicina</title>
 
-    <!-- A-Frame: motor 3D (versão compatível com NAF) -->
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <!-- Importmap: single THREE instance shared by A-Frame + Spark.js -->
+    <script type="importmap">
+    {
+      "imports": {
+        "aframe": "https://aframe.io/releases/1.7.1/aframe.module.min.js",
+        "three": "https://cdn.jsdelivr.net/npm/super-three@0.173.4/build/three.module.js",
+        "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.10/spark.module.js"
+      }
+    }
+    </script>
 
-    <!-- Networked A-Frame (NAF): multiplayer em VR -->
-    <script src="https://cdn.jsdelivr.net/gh/networked-aframe/networked-aframe@0.12.1/dist/networked-aframe.min.js"></script>
-
-    <!-- Socket.IO + EasyRTC: servidos automaticamente pelo servidor Node.js -->
-    <!-- Workaround: A-Frame/NAF definem window.module, o que faz os UMD
-         do socket.io e easyrtc usarem CommonJS em vez de browser globals.
-         Removemos temporariamente para garantir que window.io e window.easyrtc
-         são definidos corretamente. -->
-    <script>var __savedModule = window.module; window.module = undefined;</script>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/easyrtc/easyrtc.js"></script>
-    <script>window.module = __savedModule;</script>
-
-    <!-- Event-Set: interações declarativas sem JavaScript -->
-    <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
-
-    <script>
+    <script type="module">
       // =====================================================
-      //  CONFIGURAÇÃO MULTIPLAYER (mínimo de JavaScript)
+      //  BOOT SEQUENCE
+      //  A-Frame async → Spark.js → Socket.IO → EasyRTC →
+      //  NAF 0.14 → Event-Set → register components → go
       // =====================================================
 
-      // --- Cores aleatórias para avatares ---
-      // Cada aluno recebe uma cor diferente ao entrar
-      var AVATAR_COLORS = [
+      // Prevent A-Frame from auto-starting before everything is ready
+      window.AFRAME_ASYNC = true;
+
+      // 1. Load A-Frame (sets window.AFRAME globally)
+      await import("aframe");
+
+      // 2. Load Spark.js (Gaussian Splat renderer)
+      const { SplatMesh, SparkRenderer } = await import("@sparkjsdev/spark");
+
+      // 3. Helper: load a classic <script> dynamically
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+
+      // 4. Socket.IO + EasyRTC (with UMD module workaround)
+      const __savedModule = window.module;
+      window.module = undefined;
+      await loadScript("/socket.io/socket.io.js");
+      await loadScript("/easyrtc/easyrtc.js");
+      window.module = __savedModule;
+
+      // 5. Networked A-Frame (multiplayer)
+      await loadScript(
+        "https://cdn.jsdelivr.net/gh/networked-aframe/networked-aframe@0.14.0/dist/networked-aframe.min.js"
+      );
+
+      // 6. Event-Set component (declarative interactions)
+      await loadScript(
+        "https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"
+      );
+
+      // =====================================================
+      //  CUSTOM COMPONENTS
+      // =====================================================
+
+      // --- Random avatar color ---
+      const AVATAR_COLORS = [
         "#E74C3C", "#3498DB", "#2ECC71", "#F39C12",
         "#9B59B6", "#1ABC9C", "#E67E22", "#FF6B9D"
       ];
 
-      // --- Componente: cor aleatória no avatar ao ligar ---
       AFRAME.registerComponent("random-color", {
         init: function () {
-          var color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+          const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
           this.el.setAttribute("material", "color", color);
         }
       });
 
-      // --- Componente: mudar cor partilhada ao clicar ---
-      // Quando um aluno clica, TODOS veem a mudança de cor
+      // --- Shared color on click (synced to all players) ---
       AFRAME.registerComponent("shared-color", {
         init: function () {
-          var colors = ["#4CC3D9", "#9B59B6", "#00FFFF", "#FF6B6B", "#FFD700", "#2ECC71", "#E74C3C"];
-          var index = 0;
-          var el = this.el;
+          const colors = ["#4CC3D9", "#9B59B6", "#00FFFF", "#FF6B6B", "#FFD700", "#2ECC71", "#E74C3C"];
+          let index = 0;
+          const el = this.el;
 
           el.addEventListener("click", function () {
             index = (index + 1) % colors.length;
             el.setAttribute("material", "color", colors[index]);
-            // Se NAF estiver ligado, sincronizar para todos
             if (NAF.connection && NAF.connection.isConnected()) {
               NAF.utils.getNetworkedEntity(el).then(function (networkedEl) {
                 NAF.utils.takeOwnership(networkedEl);
@@ -63,6 +94,87 @@
           });
         }
       });
+
+      // --- Spark.js Gaussian Splat renderer ---
+      let _sparkRenderer = null;
+
+      AFRAME.registerComponent("spark-splat", {
+        schema: {
+          url:   { type: "string" },
+          scale: { type: "number", default: 1.0 }
+        },
+
+        init() {
+          const sceneEl = this.el.sceneEl;
+          const data    = this.data;
+          const el      = this.el;
+
+          const setupSplat = () => {
+            // SparkRenderer singleton — one per scene
+            if (!_sparkRenderer) {
+              _sparkRenderer = new SparkRenderer({ renderer: sceneEl.renderer });
+              sceneEl.object3D.add(_sparkRenderer);
+            }
+
+            // Create the splat mesh (no re-encoding, no quality loss)
+            const splat = new SplatMesh({ url: data.url });
+            splat.scale.setScalar(data.scale);
+            el.object3D.add(splat);
+          };
+
+          if (sceneEl.hasLoaded) {
+            setupSplat();
+          } else {
+            sceneEl.addEventListener("loaded", setupSplat);
+          }
+        }
+      });
+
+      // =====================================================
+      //  NAF SCHEMAS (data registration — no DOM dependency)
+      // =====================================================
+
+      NAF.schemas.add({
+        template: "#avatar-template",
+        components: [
+          "position",
+          "rotation",
+          {
+            selector: ".head",
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      NAF.schemas.add({
+        template: "#shared-box-template",
+        components: [
+          "position",
+          "rotation",
+          {
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      NAF.schemas.add({
+        template: "#shared-sphere-template",
+        components: [
+          "position",
+          {
+            component: "material",
+            property: "color"
+          }
+        ]
+      });
+
+      // =====================================================
+      //  ALL READY — start A-Frame
+      // =====================================================
+      console.log("A-Frame", AFRAME.version, "| Spark.js loaded | NAF loaded");
+      AFRAME.emitReady();
     </script>
 
     <style>
@@ -154,36 +266,27 @@
           ></a-entity>
         </template>
 
-        <!-- === FICHEIROS DA CENA === -->
-        <img
-          id="pano"
-          src="2019_07_05_Armazones_Inside_Crater_Pano_24mm_EQ_CC.jpg"
-          crossorigin="anonymous"
-        />
+        <!-- === HEART MODEL === -->
         <a-asset-item id="heart-obj" src="assets/heart/HumanHeart_OBJ.obj"></a-asset-item>
         <a-asset-item id="heart-mtl" src="assets/heart/HumanHeart_OBJ.mtl"></a-asset-item>
       </a-assets>
 
       <!-- ============================================ -->
-      <!--              CENÁRIO                         -->
+      <!--   GAUSSIAN SPLAT ENVIRONMENT (World Labs)    -->
+      <!--   Rendered natively — no quality loss        -->
       <!-- ============================================ -->
-
-      <!-- SKY: panorama 360° -->
-      <a-sky src="#pano" rotation="0 -90 0"></a-sky>
-
-      <!-- LUZ -->
-      <a-entity light="type: ambient; intensity: 0.7"></a-entity>
-      <a-entity light="type: directional; intensity: 1.1" position="2 4 1"></a-entity>
-      <a-entity light="type: directional; intensity: 0.5" position="-2 2 -1"></a-entity>
-
-      <!-- CHÃO -->
-      <a-plane
+      <a-entity
+        spark-splat="url: assets/scene/retro-futuristic-biomedical-space-chamber.spz; scale: 2.5"
         position="0 0 0"
-        rotation="-90 0 0"
-        width="30"
-        height="30"
-        color="#5B8C7A"
-      ></a-plane>
+      ></a-entity>
+
+      <!-- ============================================ -->
+      <!--              LIGHTING                        -->
+      <!--  Reduced — splat has baked lighting.         -->
+      <!--  Low ambient keeps A-Frame objects visible.  -->
+      <!-- ============================================ -->
+      <a-entity light="type: ambient; intensity: 0.4"></a-entity>
+      <a-entity light="type: directional; intensity: 0.6" position="2 4 1"></a-entity>
 
       <!-- ============================================ -->
       <!--    OBJETOS PARTILHADOS (MULTIPLAYER)         -->
@@ -238,45 +341,8 @@
       ></a-entity>
 
       <!-- ============================================ -->
-      <!--     DECORAÇÃO / AMBIENTE MÉDICO              -->
-      <!-- ============================================ -->
-
-      <!-- Cilindro decorativo — pilar esquerdo -->
-      <a-cylinder
-        position="-6 1.5 -8"
-        radius="0.3"
-        height="3"
-        color="#CCCCCC"
-        material="metalness: 0.6; roughness: 0.3"
-      ></a-cylinder>
-
-      <!-- Cilindro decorativo — pilar direito -->
-      <a-cylinder
-        position="6 1.5 -8"
-        radius="0.3"
-        height="3"
-        color="#CCCCCC"
-        material="metalness: 0.6; roughness: 0.3"
-      ></a-cylinder>
-
-      <!-- Plano de fundo — "parede" atrás dos objetos -->
-      <a-plane
-        position="0 2 -9"
-        width="14"
-        height="5"
-        color="#1a1a2e"
-        material="opacity: 0.4; transparent: true; shader: flat"
-      ></a-plane>
-
-      <!-- Texto de boas-vindas no fundo -->
-      <a-entity
-        text="value: Laboratorio Virtual de Medicina; align: center;
-              color: #FFFFFF; width: 8; font: roboto"
-        position="0 4 -8.9"
-      ></a-entity>
-
-      <!-- ============================================ -->
       <!--    JOGADOR: câmara + retículo + avatar       -->
+      <!--    Eye height = 1.6m (normal adult)          -->
       <!-- ============================================ -->
       <a-entity
         id="player"
@@ -284,7 +350,7 @@
         camera
         wasd-controls
         look-controls
-        position="0 1.6 5"
+        position="0 1.6 0"
       >
         <!-- Retículo (cursor) -->
         <a-entity
@@ -302,49 +368,5 @@
       </a-entity>
 
     </a-scene>
-
-    <!-- ================================================ -->
-    <!--  SCHEMAS NAF — devem ser registados DEPOIS da    -->
-    <!--  <a-scene> existir no DOM (templates disponíveis)-->
-    <!-- ================================================ -->
-    <script>
-      // --- Esquema do avatar: o que sincronizar na rede ---
-      NAF.schemas.add({
-        template: "#avatar-template",
-        components: [
-          "position",
-          "rotation",
-          {
-            selector: ".head",
-            component: "material",
-            property: "color"
-          }
-        ]
-      });
-
-      // --- Esquema dos objetos partilhados ---
-      NAF.schemas.add({
-        template: "#shared-box-template",
-        components: [
-          "position",
-          "rotation",
-          {
-            component: "material",
-            property: "color"
-          }
-        ]
-      });
-
-      NAF.schemas.add({
-        template: "#shared-sphere-template",
-        components: [
-          "position",
-          {
-            component: "material",
-            property: "color"
-          }
-        ]
-      });
-    </script>
   </body>
 </html>
