@@ -296,21 +296,21 @@
       <!-- Cubo partilhado — esquerda -->
       <a-entity
         networked="template:#shared-box-template; persistent:true; networkId:cubo-esq; owner:scene"
-        position="-4 0.7 -5"
+        position="-4 0.2 -5"
         rotation="0 30 0"
       ></a-entity>
 
       <!-- Cubo partilhado — direita -->
       <a-entity
         networked="template:#shared-box-template; persistent:true; networkId:cubo-dir; owner:scene"
-        position="4 0.7 -5"
+        position="4 0.2 -5"
         rotation="0 -30 0"
       ></a-entity>
 
       <!-- Esfera partilhada — centro-atrás -->
       <a-entity
         networked="template:#shared-sphere-template; persistent:true; networkId:esfera-part; owner:scene"
-        position="0 1.5 -7"
+        position="0 0.8 -7"
       ></a-entity>
 
       <!-- ============================================ -->
@@ -321,7 +321,7 @@
       <a-entity
         id="heart-label"
         text="value: Heart; align: center; color: #FFFFFF; width: 4"
-        position="0 2.8 -3"
+        position="0 1.8 -3"
         visible="false"
       ></a-entity>
 
@@ -331,9 +331,9 @@
         class="clickable"
         obj-model="obj: #heart-obj; mtl: #heart-mtl"
         material="side: double"
-        position="0 1.5 -3"
+        position="0 0.8 -3"
         rotation="0 180 0"
-        scale="0.12 0.12 0.12"
+        scale="0.08 0.08 0.08"
         animation="property: rotation; to: 0 540 0;
                    loop: true; dur: 12000; easing: linear"
         event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
