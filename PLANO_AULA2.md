@@ -158,15 +158,49 @@ Explicar o conceito de template com analogia:
 
 ## Teacher script
 
-> "Agora vamos ver a magia. Cada um de vocês tem um jogador (player) com o componente `networked`:"
+> "Agora vamos ver a magia. Cada um de vocês tem um jogador (player) com o componente `networked`."
+>
+> "Mas primeiro, preciso de explicar um truque importante chamado **Camera Rig**."
+
+### O problema da altura em VR
+
+> "No PC, o A-Frame inventa uma altura de 1.6 metros para simular os olhos de uma pessoa. Nos óculos VR (Quest), o headset já sabe a nossa altura REAL graças aos sensores."
+>
+> "Se metermos a câmara a 1.6m manualmente, no PC fica bem, mas nos óculos VR o sistema soma a altura real (~1.6m) com os 1.6m que escrevemos — ficamos a 3.2 metros, a flutuar no ar!"
+
+### A solução: Camera Rig (duas camadas)
+
+> "A solução é separar o jogador em duas camadas:"
+
+| Camada | Nome | Posição | O que faz |
+|--------|------|---------|-----------|
+| Exterior | `#rig` | y = 0 (chão) | Trata do **movimento** (andar com WASD) |
+| Interior | `#player` | y = 0 | Trata de **olhar** (rodar a cabeça / câmara) |
+
+> "Assim, cada sistema adiciona a altura uma só vez:"
+> - **PC:** 0 + 1.6m (inventado pelo A-Frame) = 1.6m
+> - **Quest:** 0 + 1.6m (medido pelos sensores) = 1.6m
+>
+> "Resultado: a mesma altura nos dois! Sem flutuar."
 
 ```html
+<!-- Camada exterior: "rig" — fica no chão, move com WASD -->
 <a-entity
-  id="player"
+  id="rig"
   networked="template:#avatar-template; attachTemplateToLocal:false"
-  camera wasd-controls look-controls
-  position="0 1.6 5"
+  wasd-controls
+  position="0 0 0"
 >
+  <!-- Camada interior: câmara — olha à volta -->
+  <a-entity
+    id="player"
+    camera
+    look-controls
+    position="0 0 0"
+  >
+    <!-- cursor aqui dentro -->
+  </a-entity>
+</a-entity>
 ```
 
 > "`attachTemplateToLocal: false` — não mostra o avatar a NÓS. Nós vemos pela câmara. Os OUTROS é que veem a nossa esfera colorida."
@@ -276,6 +310,7 @@ Explicar o conceito de template com analogia:
 | 6 | Objetos partilhados não mudam para todos | Verificar `persistent:true` e `owner:scene`. O `shared-color` precisa de `NAF.utils.takeOwnership`. |
 | 7 | Muito lag/lentidão | Demasiados utilizadores. EasyRTC suporta ~20-25 por sala. |
 | 8 | No Quest não funciona | Mesmo que Aula 1: mesma rede Wi-Fi, URL `http://`, porta correta. |
+| 9 | No Quest estou a flutuar / muito alto | Verificar que o jogador usa o padrão **Camera Rig** (duas camadas: `#rig` + `#player`, ambos a y=0). Se a câmara tiver `position="0 1.6 0"` diretamente, o Quest soma a altura real e fica a ~3.2m. |
 
 ---
 
