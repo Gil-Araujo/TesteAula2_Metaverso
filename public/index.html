@@ -277,7 +277,7 @@
       <!-- ============================================ -->
       <a-entity
         spark-splat="url: assets/scene/retro-futuristic-biomedical-space-chamber.spz; scale: 1.0"
-        position="0 1.6 0"
+        position="0 1.3 0"
       ></a-entity>
 
       <!-- ============================================ -->
@@ -296,21 +296,21 @@
       <!-- Cubo partilhado — esquerda -->
       <a-entity
         networked="template:#shared-box-template; persistent:true; networkId:cubo-esq; owner:scene"
-        position="-4 2.2 -5"
+        position="-4 0.6 -5"
         rotation="0 30 0"
       ></a-entity>
 
       <!-- Cubo partilhado — direita -->
       <a-entity
         networked="template:#shared-box-template; persistent:true; networkId:cubo-dir; owner:scene"
-        position="4 2.2 -5"
+        position="4 0.6 -5"
         rotation="0 -30 0"
       ></a-entity>
 
       <!-- Esfera partilhada — centro-atrás -->
       <a-entity
         networked="template:#shared-sphere-template; persistent:true; networkId:esfera-part; owner:scene"
-        position="0 2.4 -7"
+        position="0 0.8 -7"
       ></a-entity>
 
       <!-- ============================================ -->
@@ -321,7 +321,7 @@
       <a-entity
         id="heart-label"
         text="value: Heart; align: center; color: #FFFFFF; width: 4"
-        position="0 3.8 -3"
+        position="0 2.2 -3"
         visible="false"
       ></a-entity>
 
@@ -331,7 +331,7 @@
         class="clickable"
         obj-model="obj: #heart-obj; mtl: #heart-mtl"
         material="side: double"
-        position="0 2.8 -3"
+        position="0 1.2 -3"
         rotation="0 180 0"
         scale="0.08 0.08 0.08"
         animation="property: rotation; to: 0 540 0;
@@ -350,13 +350,13 @@
         id="rig"
         networked="template:#avatar-template; attachTemplateToLocal:false"
         wasd-controls
-        position="0 1.6 0"
+        position="0 0 0"
       >
         <a-entity
           id="player"
           camera
           look-controls
-          position="0 0 0"
+          position="0 1.6 0"
         >
           <!-- Retículo (cursor) — o pontinho branco no
                centro do ecrã. Serve para apontar e clicar.
