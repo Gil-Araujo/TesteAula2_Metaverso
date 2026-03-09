@@ -142,11 +142,16 @@ Explicar o conceito de template com analogia:
 ```html
 <template id="avatar-template">
   <a-entity class="avatar">
-    <a-sphere class="head" scale="0.35 0.35 0.35" random-color></a-sphere>
-    <a-entity text="value: Aluno; ..." position="0 0.5 0"></a-entity>
+    <a-sphere class="head" position="0 1.3 0" scale="0.35 0.35 0.35"
+              random-color></a-sphere>
+    <a-entity text="value: Aluno; ..." position="0 1.8 0"
+              billboard></a-entity>
   </a-entity>
 </template>
 ```
+
+> "O `billboard` é um componente nosso que faz o texto rodar sempre para a câmara.
+> Assim, o nome 'Aluno' é legível de qualquer ângulo — nunca aparece ao contrário."
 
 ---
 

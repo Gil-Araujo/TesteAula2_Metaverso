@@ -76,6 +76,16 @@
         }
       });
 
+      // --- Billboard: text always faces the camera ---
+      AFRAME.registerComponent("billboard", {
+        tick: function () {
+          const camera = this.el.sceneEl.camera;
+          if (camera) {
+            this.el.object3D.lookAt(camera.getWorldPosition(new THREE.Vector3()));
+          }
+        }
+      });
+
       // --- Shared color on click (synced to all players) ---
       AFRAME.registerComponent("shared-color", {
         init: function () {
@@ -241,8 +251,9 @@
               random-color
             ></a-sphere>
             <a-entity
-              text="value: Aluno; align: center; color: white; width: 3; side: double"
+              text="value: Aluno; align: center; color: white; width: 3"
               position="0 1.8 0"
+              billboard
             ></a-entity>
           </a-entity>
         </template>
@@ -321,9 +332,10 @@
       <!-- Label "Heart" — aparece ao apontar -->
       <a-entity
         id="heart-label"
-        text="value: Heart; align: center; color: #FFFFFF; width: 4; side: double"
+        text="value: Heart; align: center; color: #FFFFFF; width: 4"
         position="0 2.2 -3"
         visible="false"
+        billboard
       ></a-entity>
 
       <!-- Coração 3D — rotação contínua + label ao hover -->

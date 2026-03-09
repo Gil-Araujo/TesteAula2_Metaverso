@@ -345,8 +345,10 @@ O formador abre o ficheiro no VS Code (ou Notepad) e projeta no ecrã.
 ```html
 <template id="avatar-template">
   <a-entity class="avatar">
-    <a-sphere class="head" scale="0.35 0.35 0.35" random-color></a-sphere>
-    <a-entity text="value: Aluno; ..." position="0 0.5 0"></a-entity>
+    <a-sphere class="head" position="0 1.3 0" scale="0.35 0.35 0.35"
+              random-color></a-sphere>
+    <a-entity text="value: Aluno; ..." position="0 1.8 0"
+              billboard></a-entity>
   </a-entity>
 </template>
 ```
@@ -354,6 +356,10 @@ O formador abre o ficheiro no VS Code (ou Notepad) e projeta no ecrã.
 > "Um template é um 'carimbo'. Quando um novo aluno entra na sala,
 > o sistema cria uma CÓPIA deste molde — uma esfera colorida com
 > o texto 'Aluno'. É o avatar que os outros veem."
+>
+> "O `billboard` faz o texto rodar sempre para a câmara — assim o nome
+> 'Aluno' é legível de qualquer ângulo. O label 'Heart' no coração
+> também usa billboard."
 
 **4. O jogador (linhas 294-315)**
 ```html
