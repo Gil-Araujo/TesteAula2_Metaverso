@@ -194,14 +194,14 @@
             camObj.getWorldDirection(dir);
             dir.y = 0;
             dir.normalize();
-            rig.object3D.position.addScaledVector(dir, -this._axis[1] * this.data.speed * dt);
+            rig.object3D.position.addScaledVector(dir, this._axis[1] * this.data.speed * dt);
             // Strafe (stick X)
             dir.cross(camObj.up).normalize();
-            rig.object3D.position.addScaledVector(dir, this._axis[0] * this.data.speed * dt);
+            rig.object3D.position.addScaledVector(dir, -this._axis[0] * this.data.speed * dt);
           } else {
             // Snap turn (right stick X)
             if (!this._snapCooldown && Math.abs(this._axis[0]) > 0.6) {
-              const angle = this._axis[0] > 0 ? -45 : 45;
+              const angle = this._axis[0] > 0 ? 45 : -45;
               rig.object3D.rotation.y += THREE.MathUtils.degToRad(angle);
               this._snapCooldown = true;
             }
@@ -685,7 +685,7 @@
         <!--   Rendered natively — no quality loss        -->
         <!-- ============================================ -->
         <a-entity
-          spark-splat="url: assets/scene/retro-futuristic-biomedical-space-chamber.spz; scale: 1.0"
+          spark-splat="url: assets/scene/retro_futuristic_biomedical.ply; scale: 1.0"
           position="0 1.3 0"
         ></a-entity>
 
