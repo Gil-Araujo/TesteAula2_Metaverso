@@ -129,6 +129,8 @@
       });
 
       // --- AR mode handler: hide splat in AR, restore in VR ---
+      // Also creates a custom AR button (A-Frame's built-in one
+      // may not appear on all Quest browser versions).
       AFRAME.registerComponent("ar-mode-handler", {
         init() {
           const scene = this.el.sceneEl;
@@ -143,6 +145,27 @@
           scene.addEventListener("exit-vr", () => {
             if (splatEl) splatEl.setAttribute("visible", true);
           });
+
+          // Custom AR button — checks WebXR support explicitly
+          if (navigator.xr) {
+            navigator.xr.isSessionSupported("immersive-ar").then(supported => {
+              if (supported) {
+                const btn = document.createElement("button");
+                btn.id = "ar-button";
+                btn.textContent = "AR";
+                btn.style.cssText =
+                  "position:fixed;bottom:20px;right:90px;z-index:9999;" +
+                  "padding:12px 24px;background:rgba(0,0,0,0.7);" +
+                  "color:white;border:1px solid white;border-radius:8px;" +
+                  "font-size:18px;font-weight:bold;cursor:pointer;" +
+                  "font-family:sans-serif;";
+                btn.addEventListener("click", () => {
+                  scene.enterAR();
+                });
+                document.body.appendChild(btn);
+              }
+            });
+          }
         }
       });
 
@@ -297,8 +320,7 @@
         debug: false;
       "
       webxr="
-        requiredFeatures: local-floor;
-        optionalFeatures: dom-overlay, hit-test, hand-tracking;
+        optionalFeatures: local-floor, dom-overlay, hit-test, hand-tracking;
         overlayElement: #overlay;
       "
       ar-mode-handler
