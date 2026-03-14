@@ -133,122 +133,243 @@
       });
 
       // --- AR mode handler: hit-test tap-to-place ---
-      // In AR, a reticle appears on real surfaces (table, floor).
-      // Student taps (trigger or select) to place the scene there.
-      // Objects stay anchored at that spot.
+      // Each student points at the SAME surface (e.g. teacher's desk)
+      // and taps trigger to place objects there. A green reticle shows
+      // where objects will appear. Content is scaled to table-top size.
       AFRAME.registerComponent("ar-mode-handler", {
         init() {
-          const scene = this.el.sceneEl;
+          const sceneEl = this.el.sceneEl;
           const splatEl = document.querySelector("[spark-splat]");
           this.sceneContent = null;
           this.placed = false;
           this.hitTestSource = null;
           this.reticle = null;
-          this._reticlePos = new THREE.Vector3();
-          this._reticleQuat = new THREE.Quaternion();
+          this.instructionEl = null;
+          this._fallbackMode = false;
+          this._arActive = false;
+
+          // Capture XR frame reliably: monkey-patch scene.render
+          // so we store the frame BEFORE A-Frame's tick() runs.
+          this._xrFrame = null;
+          const self = this;
+          const waitForScene = () => {
+            const origRender = sceneEl.render;
+            sceneEl.render = function (time, frame) {
+              self._xrFrame = frame || null;
+              return origRender.call(this, time, frame);
+            };
+          };
+          if (sceneEl.hasLoaded) waitForScene();
+          else sceneEl.addEventListener("loaded", waitForScene);
 
           // --- Enter AR ---
-          scene.addEventListener("enter-vr", () => {
-            if (!scene.is("ar-mode")) return;
+          sceneEl.addEventListener("enter-vr", () => {
+            if (!sceneEl.is("ar-mode")) return;
+            this._arActive = true;
+
+            // Hide Gaussian Splat in AR (it's a VR environment)
             if (splatEl) splatEl.setAttribute("visible", false);
+
             this.sceneContent = document.getElementById("scene-content");
             this.placed = false;
+            this._fallbackMode = false;
 
-            // Hide scene content until placed
+            // Hide scene content until student taps to place
             if (this.sceneContent) {
               this.sceneContent.setAttribute("visible", false);
             }
 
-            // Create reticle ring on surfaces
-            this.reticle = document.createElement("a-entity");
-            this.reticle.setAttribute("geometry", "primitive: ring; radiusInner: 0.08; radiusOuter: 0.12");
-            this.reticle.setAttribute("material", "color: #00FF00; shader: flat; opacity: 0.8");
-            this.reticle.setAttribute("rotation", "-90 0 0");
-            this.reticle.setAttribute("visible", false);
-            scene.appendChild(this.reticle);
+            // --- 3D instruction text attached to camera ---
+            this.instructionEl = document.createElement("a-entity");
+            this.instructionEl.setAttribute("text",
+              "value: Point at a surface (table/floor)\\nThen press TRIGGER to place objects;" +
+              "align: center; color: #00FF00; width: 1.2; anchor: center; baseline: center");
+            this.instructionEl.setAttribute("position", "0 -0.15 -0.7");
+            document.getElementById("player").appendChild(this.instructionEl);
 
-            // Start hit-test source
-            const session = scene.renderer.xr.getSession();
-            if (session && session.requestHitTestSource) {
-              session.requestReferenceSpace("viewer").then(viewerSpace => {
-                session.requestHitTestSource({ space: viewerSpace }).then(src => {
-                  this.hitTestSource = src;
-                  console.log("Hit-test source ready. Point at a surface and tap to place.");
-                });
-              }).catch(err => console.warn("Hit-test not available:", err));
+            // --- Reticle: green ring + center dot on surfaces ---
+            this.reticle = document.createElement("a-entity");
+            this.reticle.setAttribute("visible", false);
+            // Outer ring
+            const ring = document.createElement("a-ring");
+            ring.setAttribute("radius-inner", "0.12");
+            ring.setAttribute("radius-outer", "0.18");
+            ring.setAttribute("material", "color: #00FF00; shader: flat; opacity: 0.9; side: double");
+            ring.setAttribute("rotation", "-90 0 0");
+            this.reticle.appendChild(ring);
+            // Center dot
+            const dot = document.createElement("a-circle");
+            dot.setAttribute("radius", "0.04");
+            dot.setAttribute("material", "color: #00FF00; shader: flat; opacity: 1; side: double");
+            dot.setAttribute("rotation", "-90 0 0");
+            this.reticle.appendChild(dot);
+            // Pulsing animation
+            ring.setAttribute("animation", "property: scale; from: 1 1 1; to: 1.3 1.3 1.3; dur: 800; loop: true; dir: alternate; easing: easeInOutSine");
+            sceneEl.appendChild(this.reticle);
+
+            // --- Request hit-test source ---
+            const session = sceneEl.renderer.xr.getSession();
+            if (!session) {
+              console.warn("AR: no XR session found");
+              return;
             }
 
-            // Listen for select (trigger tap) to place scene
+            if (session.requestHitTestSource) {
+              session.requestReferenceSpace("viewer").then(viewerSpace => {
+                return session.requestHitTestSource({ space: viewerSpace });
+              }).then(src => {
+                this.hitTestSource = src;
+                console.log("AR: hit-test source ready");
+              }).catch(err => {
+                console.warn("AR: hit-test setup failed, using fallback:", err);
+                this._enableFallback();
+              });
+            } else {
+              console.warn("AR: hit-test not supported, using fallback");
+              this._enableFallback();
+            }
+
+            // --- Select event: place objects at reticle or fallback ---
             session.addEventListener("select", () => {
-              if (!this.placed && this.reticle && this.reticle.getAttribute("visible")) {
-                // Place scene-content at reticle position
-                const pos = this.reticle.object3D.position;
-                const quat = this.reticle.object3D.quaternion;
-                if (this.sceneContent) {
-                  this.sceneContent.object3D.position.copy(pos);
-                  this.sceneContent.object3D.quaternion.copy(quat);
-                  this.sceneContent.setAttribute("visible", true);
-                }
-                this.placed = true;
-                this.reticle.setAttribute("visible", false);
-                console.log("Scene placed at:", pos.x.toFixed(2), pos.y.toFixed(2), pos.z.toFixed(2));
+              if (this.placed) return;
+              if (this._fallbackMode) {
+                this._placeFallback();
+              } else if (this.reticle && this.reticle.object3D.visible) {
+                this._placeAtReticle();
               }
             });
           });
 
           // --- Exit AR ---
-          scene.addEventListener("exit-vr", () => {
+          sceneEl.addEventListener("exit-vr", () => {
+            this._arActive = false;
             if (splatEl) splatEl.setAttribute("visible", true);
             if (this.sceneContent) {
               this.sceneContent.setAttribute("visible", true);
               this.sceneContent.object3D.position.set(0, 0, 0);
               this.sceneContent.object3D.quaternion.identity();
+              this.sceneContent.object3D.scale.setScalar(1);
             }
             if (this.reticle && this.reticle.parentNode) {
               this.reticle.parentNode.removeChild(this.reticle);
             }
+            if (this.instructionEl && this.instructionEl.parentNode) {
+              this.instructionEl.parentNode.removeChild(this.instructionEl);
+            }
             this.reticle = null;
+            this.instructionEl = null;
             this.hitTestSource = null;
             this.placed = false;
+            this._fallbackMode = false;
           });
 
-          // --- Custom AR button ---
+          // --- Custom AR button (green, prominent) ---
           if (navigator.xr) {
             navigator.xr.isSessionSupported("immersive-ar").then(supported => {
               if (supported) {
                 const btn = document.createElement("button");
                 btn.id = "ar-button";
-                btn.textContent = "AR";
+                btn.textContent = "Enter AR";
                 btn.style.cssText =
                   "position:fixed;bottom:20px;right:90px;z-index:9999;" +
-                  "padding:12px 24px;background:rgba(0,0,0,0.7);" +
-                  "color:white;border:1px solid white;border-radius:8px;" +
-                  "font-size:18px;font-weight:bold;cursor:pointer;" +
+                  "padding:14px 28px;background:rgba(0,180,0,0.85);" +
+                  "color:white;border:2px solid white;border-radius:12px;" +
+                  "font-size:20px;font-weight:bold;cursor:pointer;" +
                   "font-family:sans-serif;";
-                btn.addEventListener("click", () => {
-                  scene.enterAR();
-                });
+                btn.addEventListener("click", () => sceneEl.enterAR());
                 document.body.appendChild(btn);
               }
             });
           }
+
+          // --- Fallback timeout: if no hit-test results after 8s ---
+          sceneEl.addEventListener("enter-vr", () => {
+            if (!sceneEl.is("ar-mode")) return;
+            setTimeout(() => {
+              if (this._arActive && !this.placed && !this._fallbackMode &&
+                  (!this.reticle || !this.reticle.object3D.visible)) {
+                console.log("AR: no hit-test results after 8s, enabling fallback");
+                this._enableFallback();
+              }
+            }, 8000);
+          });
+        },
+
+        _enableFallback() {
+          this._fallbackMode = true;
+          if (this.instructionEl) {
+            this.instructionEl.setAttribute("text", "value",
+              "Press TRIGGER to place objects\\n2 meters in front of you");
+          }
+        },
+
+        _placeAtReticle() {
+          if (!this.sceneContent || !this.reticle) return;
+          const pos = this.reticle.object3D.position.clone();
+          this.sceneContent.object3D.position.copy(pos);
+          // Scale to table-top size (10% of VR room scale)
+          this.sceneContent.object3D.scale.setScalar(0.1);
+          this.sceneContent.setAttribute("visible", true);
+          this.placed = true;
+          this.reticle.setAttribute("visible", false);
+          if (this.instructionEl) {
+            this.instructionEl.setAttribute("text", "value", "Objects placed!");
+            setTimeout(() => {
+              if (this.instructionEl && this.instructionEl.parentNode) {
+                this.instructionEl.parentNode.removeChild(this.instructionEl);
+                this.instructionEl = null;
+              }
+            }, 2000);
+          }
+          console.log("AR: placed at", pos.x.toFixed(2), pos.y.toFixed(2), pos.z.toFixed(2));
+        },
+
+        _placeFallback() {
+          if (!this.sceneContent) return;
+          const cam = this.el.sceneEl.camera;
+          const dir = new THREE.Vector3(0, 0, -2);
+          dir.applyQuaternion(cam.quaternion);
+          const pos = cam.getWorldPosition(new THREE.Vector3()).add(dir);
+          this.sceneContent.object3D.position.copy(pos);
+          this.sceneContent.object3D.scale.setScalar(0.1);
+          this.sceneContent.setAttribute("visible", true);
+          this.placed = true;
+          if (this.reticle) this.reticle.setAttribute("visible", false);
+          if (this.instructionEl) {
+            this.instructionEl.setAttribute("text", "value", "Objects placed!");
+            setTimeout(() => {
+              if (this.instructionEl && this.instructionEl.parentNode) {
+                this.instructionEl.parentNode.removeChild(this.instructionEl);
+                this.instructionEl = null;
+              }
+            }, 2000);
+          }
+          console.log("AR: fallback placed at", pos.x.toFixed(2), pos.y.toFixed(2), pos.z.toFixed(2));
         },
 
         tick() {
-          const scene = this.el.sceneEl;
-          if (!scene.is("ar-mode") || this.placed || !this.hitTestSource) return;
+          if (!this._arActive || this.placed || !this.hitTestSource) return;
 
-          const frame = scene.frame;
+          // Use our captured frame (from monkey-patched render) or A-Frame's
+          const frame = this._xrFrame || this.el.sceneEl.frame;
           if (!frame || !frame.getHitTestResults) return;
 
-          const results = frame.getHitTestResults(this.hitTestSource);
-          if (results.length === 0) {
+          let results;
+          try {
+            results = frame.getHitTestResults(this.hitTestSource);
+          } catch (e) {
+            return;
+          }
+
+          if (!results || results.length === 0) {
             if (this.reticle) this.reticle.setAttribute("visible", false);
             return;
           }
 
           const hit = results[0];
-          const refSpace = scene.renderer.xr.getReferenceSpace();
+          const refSpace = this.el.sceneEl.renderer.xr.getReferenceSpace();
+          if (!refSpace) return;
+
           const pose = hit.getPose(refSpace);
           if (pose && this.reticle) {
             const p = pose.transform.position;
