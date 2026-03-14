@@ -90,9 +90,9 @@
       AFRAME.registerComponent("controller-grab", {
         init() {
           this.heldEntity = null;
-          this.grabDistance = 1;
-          this._controllerPos = new THREE.Vector3();
-          this._dir = new THREE.Vector3();
+          this._grabOffset = new THREE.Vector3();
+          this._worldPos = new THREE.Vector3();
+          this._objPos = new THREE.Vector3();
           const el = this.el;
 
           el.addEventListener("gripdown", () => {
@@ -105,7 +105,10 @@
               const target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
               if (target && target.classList.contains("clickable")) {
                 this.heldEntity = target;
-                this.grabDistance = hit.distance;
+                // Store offset: object world pos minus controller world pos
+                el.object3D.getWorldPosition(this._worldPos);
+                target.object3D.getWorldPosition(this._objPos);
+                this._grabOffset.copy(this._objPos).sub(this._worldPos);
                 if (NAF.connection && NAF.connection.isConnected()) {
                   NAF.utils.getNetworkedEntity(target).then(networkedEl => {
                     NAF.utils.takeOwnership(networkedEl);
@@ -122,13 +125,61 @@
 
         tick() {
           if (!this.heldEntity) return;
-          this.el.object3D.getWorldPosition(this._controllerPos);
-          this._dir.set(0, 0, -this.grabDistance);
-          this._dir.applyQuaternion(this.el.object3D.quaternion);
-          this._controllerPos.add(this._dir);
+          // Place object at controller position + original offset
+          this.el.object3D.getWorldPosition(this._worldPos);
+          this._worldPos.add(this._grabOffset);
           const parent = this.heldEntity.object3D.parent;
-          if (parent) parent.worldToLocal(this._controllerPos);
-          this.heldEntity.setAttribute("position", this._controllerPos);
+          if (parent) parent.worldToLocal(this._worldPos);
+          this.heldEntity.setAttribute("position", this._worldPos);
+        }
+      });
+
+      // --- Thumbstick locomotion for VR controllers ---
+      // Left stick: move forward/back/strafe
+      // Right stick: snap turn 45 degrees
+      AFRAME.registerComponent("thumbstick-move", {
+        schema: {
+          speed: { type: "number", default: 3 },
+          hand: { type: "string", default: "left" }
+        },
+        init() {
+          this._axis = [0, 0];
+          this._snapCooldown = false;
+          this.el.addEventListener("thumbstickmoved", (evt) => {
+            this._axis[0] = evt.detail.x;
+            this._axis[1] = evt.detail.y;
+          });
+        },
+        tick(time, delta) {
+          if (Math.abs(this._axis[0]) < 0.15 && Math.abs(this._axis[1]) < 0.15) {
+            this._snapCooldown = false;
+            return;
+          }
+          const rig = document.getElementById("rig");
+          if (!rig) return;
+          const dt = delta / 1000;
+
+          if (this.data.hand === "left") {
+            // Movement relative to camera direction
+            const cam = document.getElementById("player");
+            const camObj = cam.object3D;
+            const dir = new THREE.Vector3();
+            // Forward/back (stick Y)
+            camObj.getWorldDirection(dir);
+            dir.y = 0;
+            dir.normalize();
+            rig.object3D.position.addScaledVector(dir, -this._axis[1] * this.data.speed * dt);
+            // Strafe (stick X)
+            dir.cross(camObj.up).normalize();
+            rig.object3D.position.addScaledVector(dir, this._axis[0] * this.data.speed * dt);
+          } else {
+            // Snap turn (right stick X)
+            if (!this._snapCooldown && Math.abs(this._axis[0]) > 0.6) {
+              const angle = this._axis[0] > 0 ? -45 : 45;
+              rig.object3D.rotation.y += THREE.MathUtils.degToRad(angle);
+              this._snapCooldown = true;
+            }
+          }
         }
       });
 
@@ -717,20 +768,22 @@
         <!--    Trigger = click | Grip = grab & move      -->
         <!-- ============================================ -->
 
-        <!-- Left hand controller -->
+        <!-- Left hand controller — move with thumbstick -->
         <a-entity
           id="left-hand"
           laser-controls="hand: left"
           raycaster="objects: .clickable; far: 20"
           controller-grab
+          thumbstick-move="hand: left; speed: 3"
         ></a-entity>
 
-        <!-- Right hand controller -->
+        <!-- Right hand controller — snap turn with thumbstick -->
         <a-entity
           id="right-hand"
           laser-controls="hand: right"
           raycaster="objects: .clickable; far: 20"
           controller-grab
+          thumbstick-move="hand: right"
         ></a-entity>
       </a-entity>
 
