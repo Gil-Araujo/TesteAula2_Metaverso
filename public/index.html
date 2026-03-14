@@ -87,12 +87,15 @@
       });
 
       // --- Controller grab: grip button picks up objects ---
+      // Delta-based: tracks hand movement each frame and applies
+      // the same movement to the object. Works at any distance.
       AFRAME.registerComponent("controller-grab", {
         init() {
           this.heldEntity = null;
-          this._grabOffset = new THREE.Vector3();
-          this._worldPos = new THREE.Vector3();
-          this._objPos = new THREE.Vector3();
+          this._prevPos = new THREE.Vector3();
+          this._curPos = new THREE.Vector3();
+          this._delta = new THREE.Vector3();
+          this._parentInvQuat = new THREE.Quaternion();
           const el = this.el;
 
           el.addEventListener("gripdown", () => {
@@ -105,10 +108,8 @@
               const target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
               if (target && target.classList.contains("clickable")) {
                 this.heldEntity = target;
-                // Store offset: object world pos minus controller world pos
-                el.object3D.getWorldPosition(this._worldPos);
-                target.object3D.getWorldPosition(this._objPos);
-                this._grabOffset.copy(this._objPos).sub(this._worldPos);
+                // Record controller position at grab start
+                el.object3D.getWorldPosition(this._prevPos);
                 if (NAF.connection && NAF.connection.isConnected()) {
                   NAF.utils.getNetworkedEntity(target).then(networkedEl => {
                     NAF.utils.takeOwnership(networkedEl);
@@ -125,17 +126,21 @@
 
         tick() {
           if (!this.heldEntity) return;
-          // Ensure matrices are current before reading world positions
-          this.el.object3D.updateWorldMatrix(true, false);
-          this.el.object3D.getWorldPosition(this._worldPos);
-          this._worldPos.add(this._grabOffset);
+          // Get current controller world position
+          this.el.object3D.getWorldPosition(this._curPos);
+          // Delta = how much the hand moved this frame
+          this._delta.copy(this._curPos).sub(this._prevPos);
+          // Convert delta from world space to parent's local space
           const parent = this.heldEntity.object3D.parent;
           if (parent) {
-            parent.updateWorldMatrix(true, false);
-            parent.worldToLocal(this._worldPos);
+            parent.getWorldQuaternion(this._parentInvQuat);
+            this._parentInvQuat.invert();
+            this._delta.applyQuaternion(this._parentInvQuat);
           }
-          // Direct Three.js update (bypasses A-Frame setAttribute latency)
-          this.heldEntity.object3D.position.copy(this._worldPos);
+          // Apply delta directly to the object's local position
+          this.heldEntity.object3D.position.add(this._delta);
+          // Save current position for next frame
+          this._prevPos.copy(this._curPos);
         }
       });
 
