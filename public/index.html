@@ -86,6 +86,66 @@
         }
       });
 
+      // --- Controller grab: grip button picks up objects ---
+      AFRAME.registerComponent("controller-grab", {
+        init() {
+          this.heldEntity = null;
+          this._controllerPos = new THREE.Vector3();
+          this._dir = new THREE.Vector3();
+          const el = this.el;
+
+          el.addEventListener("gripdown", () => {
+            const raycaster = el.components.raycaster;
+            if (!raycaster) return;
+            const intersections = raycaster.intersections;
+            if (intersections.length > 0) {
+              const hit = intersections[0].object.el;
+              // Walk up to find the clickable entity (could be a child mesh)
+              const target = hit.closest ? hit.closest(".clickable") : hit;
+              if (target && target.classList.contains("clickable")) {
+                this.heldEntity = target;
+                if (NAF.connection && NAF.connection.isConnected()) {
+                  NAF.utils.getNetworkedEntity(target).then(networkedEl => {
+                    NAF.utils.takeOwnership(networkedEl);
+                  }).catch(() => {});
+                }
+              }
+            }
+          });
+
+          el.addEventListener("gripup", () => {
+            this.heldEntity = null;
+          });
+        },
+
+        tick() {
+          if (!this.heldEntity) return;
+          this.el.object3D.getWorldPosition(this._controllerPos);
+          this._dir.set(0, 0, -0.5);
+          this._dir.applyQuaternion(this.el.object3D.quaternion);
+          this._controllerPos.add(this._dir);
+          this.heldEntity.setAttribute("position", this._controllerPos);
+        }
+      });
+
+      // --- AR mode handler: hide splat in AR, restore in VR ---
+      AFRAME.registerComponent("ar-mode-handler", {
+        init() {
+          const scene = this.el.sceneEl;
+          const splatEl = document.querySelector("[spark-splat]");
+
+          scene.addEventListener("enter-vr", () => {
+            if (scene.is("ar-mode")) {
+              if (splatEl) splatEl.setAttribute("visible", false);
+            }
+          });
+
+          scene.addEventListener("exit-vr", () => {
+            if (splatEl) splatEl.setAttribute("visible", true);
+          });
+        }
+      });
+
       // --- Shared color on click (synced to all players) ---
       AFRAME.registerComponent("shared-color", {
         init: function () {
@@ -215,10 +275,11 @@
     <!--         OVERLAY — instruções no ecrã             -->
     <!-- ================================================ -->
     <div id="overlay">
-      <h3>Metaverso VR — Medicina</h3>
+      <h3>Metaverso VR/AR — Medicina</h3>
       <ul>
-        <li><b>Mover:</b> W A S D &nbsp;|&nbsp; <b>Olhar:</b> arrastar rato</li>
-        <li><b>Interagir:</b> aponta + clica (PC) ou espera 1.5s (VR)</li>
+        <li><b>PC:</b> W A S D + rato &nbsp;|&nbsp; clica para interagir</li>
+        <li><b>VR:</b> gatilho = clicar &nbsp;|&nbsp; grip = agarrar e mover</li>
+        <li><b>AR:</b> carrega no botão AR (telemóvel compatível)</li>
         <li class="highlight">As esferas coloridas são os outros alunos!</li>
         <li>Clica nos cubos/esfera — TODOS veem a mudança</li>
         <li>Coração: aponta para ver "Heart"</li>
@@ -235,6 +296,12 @@
         connectOnLoad: true;
         debug: false;
       "
+      webxr="
+        requiredFeatures: local-floor;
+        optionalFeatures: dom-overlay, hit-test, hand-tracking;
+        overlayElement: #overlay;
+      "
+      ar-mode-handler
     >
       <!-- ============================================ -->
       <!--     ASSETS + TEMPLATES MULTIPLAYER           -->
@@ -388,6 +455,28 @@
                               dur: 200; startEvents: mouseleave"
           ></a-entity>
         </a-entity>
+
+        <!-- ============================================ -->
+        <!--    VR CONTROLLERS — Left & Right hands       -->
+        <!--    laser-controls auto-detects headset type  -->
+        <!--    Trigger = click | Grip = grab & move      -->
+        <!-- ============================================ -->
+
+        <!-- Left hand controller -->
+        <a-entity
+          id="left-hand"
+          laser-controls="hand: left"
+          raycaster="objects: .clickable; far: 20"
+          controller-grab
+        ></a-entity>
+
+        <!-- Right hand controller -->
+        <a-entity
+          id="right-hand"
+          laser-controls="hand: right"
+          raycaster="objects: .clickable; far: 20"
+          controller-grab
+        ></a-entity>
       </a-entity>
 
     </a-scene>
