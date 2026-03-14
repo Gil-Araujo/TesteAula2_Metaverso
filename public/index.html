@@ -125,12 +125,17 @@
 
         tick() {
           if (!this.heldEntity) return;
-          // Place object at controller position + original offset
+          // Ensure matrices are current before reading world positions
+          this.el.object3D.updateWorldMatrix(true, false);
           this.el.object3D.getWorldPosition(this._worldPos);
           this._worldPos.add(this._grabOffset);
           const parent = this.heldEntity.object3D.parent;
-          if (parent) parent.worldToLocal(this._worldPos);
-          this.heldEntity.setAttribute("position", this._worldPos);
+          if (parent) {
+            parent.updateWorldMatrix(true, false);
+            parent.worldToLocal(this._worldPos);
+          }
+          // Direct Three.js update (bypasses A-Frame setAttribute latency)
+          this.heldEntity.object3D.position.copy(this._worldPos);
         }
       });
 
