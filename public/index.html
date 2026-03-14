@@ -87,15 +87,13 @@
       });
 
       // --- Controller grab: grip button picks up objects ---
-      // Absolute offset with NAF pause: prevents network sync from
-      // overriding position during grab. Resumes on release.
+      // Re-parent approach: attaches the object's Object3D to the
+      // controller during grab. The object follows the hand 1:1
+      // automatically as a child of the controller hierarchy.
       AFRAME.registerComponent("controller-grab", {
         init() {
           this.heldEntity = null;
-          this._grabOffset = new THREE.Vector3();
-          this._targetWorldPos = new THREE.Vector3();
-          this._controllerWorldPos = new THREE.Vector3();
-          this._invMatrix = new THREE.Matrix4();
+          this._originalParent = null;
           this._networkedComp = null;
           const el = this.el;
 
@@ -109,13 +107,10 @@
               const target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
               if (target && target.classList.contains("clickable")) {
                 this.heldEntity = target;
+                const obj = target.object3D;
 
-                // Compute world-space offset at grab time
-                el.object3D.updateWorldMatrix(true, false);
-                target.object3D.updateWorldMatrix(true, false);
-                el.object3D.getWorldPosition(this._controllerWorldPos);
-                target.object3D.getWorldPosition(this._targetWorldPos);
-                this._grabOffset.copy(this._targetWorldPos).sub(this._controllerWorldPos);
+                // Save original parent for re-parenting on release
+                this._originalParent = obj.parent;
 
                 // Pause NAF to prevent position overrides during grab
                 this._networkedComp = null;
@@ -131,45 +126,36 @@
                   }
                   cursor = cursor.parentEl || null;
                 }
+
+                // Re-parent object to controller (preserves world transform).
+                // Object now follows the hand automatically — no tick needed.
+                el.object3D.attach(obj);
               }
             }
           });
 
           el.addEventListener("gripup", () => {
-            if (this.heldEntity) {
+            if (this.heldEntity && this._originalParent) {
+              const obj = this.heldEntity.object3D;
+
+              // Re-parent back to original parent (preserves world transform)
+              this._originalParent.attach(obj);
+
               // Sync final position to A-Frame for NAF broadcast
-              const pos = this.heldEntity.object3D.position;
+              const pos = obj.position;
               this.heldEntity.setAttribute("position", {x: pos.x, y: pos.y, z: pos.z});
-            }
-            if (this._networkedComp) {
-              this._networkedComp.play();
-              this._networkedComp = null;
+
+              // Resume NAF
+              if (this._networkedComp) {
+                this._networkedComp.play();
+                this._networkedComp = null;
+              }
             }
             this.heldEntity = null;
+            this._originalParent = null;
           });
-        },
-
-        tick() {
-          if (!this.heldEntity) return;
-
-          // 1. Current controller world position
-          this.el.object3D.updateWorldMatrix(true, false);
-          this.el.object3D.getWorldPosition(this._controllerWorldPos);
-
-          // 2. Absolute target world position
-          this._targetWorldPos.copy(this._controllerWorldPos).add(this._grabOffset);
-
-          // 3. Convert to parent's local space (full matrix)
-          const parent = this.heldEntity.object3D.parent;
-          if (parent) {
-            parent.updateWorldMatrix(true, false);
-            this._invMatrix.copy(parent.matrixWorld).invert();
-            this._targetWorldPos.applyMatrix4(this._invMatrix);
-          }
-
-          // 4. Set position directly (no setAttribute during grab)
-          this.heldEntity.object3D.position.copy(this._targetWorldPos);
         }
+        // No tick() needed — object follows controller as a child
       });
 
       // --- Thumbstick locomotion for VR controllers ---
