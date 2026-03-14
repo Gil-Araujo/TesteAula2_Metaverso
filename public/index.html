@@ -90,6 +90,7 @@
       AFRAME.registerComponent("controller-grab", {
         init() {
           this.heldEntity = null;
+          this.grabDistance = 1;
           this._controllerPos = new THREE.Vector3();
           this._dir = new THREE.Vector3();
           const el = this.el;
@@ -99,11 +100,12 @@
             if (!raycaster) return;
             const intersections = raycaster.intersections;
             if (intersections.length > 0) {
-              const hit = intersections[0].object.el;
-              // Walk up to find the clickable entity (could be a child mesh)
-              const target = hit.closest ? hit.closest(".clickable") : hit;
+              const hit = intersections[0];
+              const hitEl = hit.object.el;
+              const target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
               if (target && target.classList.contains("clickable")) {
                 this.heldEntity = target;
+                this.grabDistance = hit.distance;
                 if (NAF.connection && NAF.connection.isConnected()) {
                   NAF.utils.getNetworkedEntity(target).then(networkedEl => {
                     NAF.utils.takeOwnership(networkedEl);
@@ -121,11 +123,9 @@
         tick() {
           if (!this.heldEntity) return;
           this.el.object3D.getWorldPosition(this._controllerPos);
-          this._dir.set(0, 0, -0.5);
+          this._dir.set(0, 0, -this.grabDistance);
           this._dir.applyQuaternion(this.el.object3D.quaternion);
           this._controllerPos.add(this._dir);
-          // Convert world position to parent's local space
-          // (needed when objects are inside scene-content in AR)
           const parent = this.heldEntity.object3D.parent;
           if (parent) parent.worldToLocal(this._controllerPos);
           this.heldEntity.setAttribute("position", this._controllerPos);
@@ -247,6 +247,7 @@
             if (this.sceneContent) {
               this.sceneContent.setAttribute("visible", true);
               this.sceneContent.object3D.position.set(0, 0, 0);
+              this.sceneContent.object3D.rotation.set(0, 0, 0);
               this.sceneContent.object3D.quaternion.identity();
               this.sceneContent.object3D.scale.setScalar(1);
             }
@@ -305,10 +306,17 @@
 
         _placeAtReticle() {
           if (!this.sceneContent || !this.reticle) return;
-          const pos = this.reticle.object3D.position.clone();
-          this.sceneContent.object3D.position.copy(pos);
-          // Scale to table-top size (10% of VR room scale)
-          this.sceneContent.object3D.scale.setScalar(0.1);
+          // Place at user's XZ position, at floor height from reticle
+          // Objects in scene-content are at -Z, so they appear in front
+          const cam = this.el.sceneEl.camera;
+          const camPos = cam.getWorldPosition(new THREE.Vector3());
+          const floorY = this.reticle.object3D.position.y;
+          this.sceneContent.object3D.position.set(camPos.x, floorY, camPos.z);
+          // Rotate scene-content to face the same direction as the user
+          const camQuat = cam.getWorldQuaternion(new THREE.Quaternion());
+          const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+          this.sceneContent.object3D.rotation.set(0, euler.y, 0);
+          this.sceneContent.object3D.scale.setScalar(1);
           this.sceneContent.setAttribute("visible", true);
           this.placed = true;
           this.reticle.setAttribute("visible", false);
@@ -321,17 +329,20 @@
               }
             }, 2000);
           }
-          console.log("AR: placed at", pos.x.toFixed(2), pos.y.toFixed(2), pos.z.toFixed(2));
+          console.log("AR: placed at", camPos.x.toFixed(2), floorY.toFixed(2), camPos.z.toFixed(2));
         },
 
         _placeFallback() {
           if (!this.sceneContent) return;
           const cam = this.el.sceneEl.camera;
-          const dir = new THREE.Vector3(0, 0, -2);
-          dir.applyQuaternion(cam.quaternion);
-          const pos = cam.getWorldPosition(new THREE.Vector3()).add(dir);
-          this.sceneContent.object3D.position.copy(pos);
-          this.sceneContent.object3D.scale.setScalar(0.1);
+          const camPos = cam.getWorldPosition(new THREE.Vector3());
+          // Place at user's position, on the floor (y=0)
+          this.sceneContent.object3D.position.set(camPos.x, 0, camPos.z);
+          // Rotate to face user's direction
+          const camQuat = cam.getWorldQuaternion(new THREE.Quaternion());
+          const euler = new THREE.Euler().setFromQuaternion(camQuat, "YXZ");
+          this.sceneContent.object3D.rotation.set(0, euler.y, 0);
+          this.sceneContent.object3D.scale.setScalar(1);
           this.sceneContent.setAttribute("visible", true);
           this.placed = true;
           if (this.reticle) this.reticle.setAttribute("visible", false);
@@ -344,7 +355,7 @@
               }
             }, 2000);
           }
-          console.log("AR: fallback placed at", pos.x.toFixed(2), pos.y.toFixed(2), pos.z.toFixed(2));
+          console.log("AR: fallback placed at", camPos.x.toFixed(2), "0.00", camPos.z.toFixed(2));
         },
 
         tick() {
