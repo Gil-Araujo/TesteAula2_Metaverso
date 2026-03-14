@@ -124,29 +124,74 @@
           this._dir.set(0, 0, -0.5);
           this._dir.applyQuaternion(this.el.object3D.quaternion);
           this._controllerPos.add(this._dir);
+          // Convert world position to parent's local space
+          // (needed when objects are inside scene-content in AR)
+          const parent = this.heldEntity.object3D.parent;
+          if (parent) parent.worldToLocal(this._controllerPos);
           this.heldEntity.setAttribute("position", this._controllerPos);
         }
       });
 
-      // --- AR mode handler: hide splat in AR, restore in VR ---
-      // Also creates a custom AR button (A-Frame's built-in one
-      // may not appear on all Quest browser versions).
+      // --- AR mode handler: image tracking + hide splat in AR ---
+      // Tracks the Bauhaus book cover so all Quest 3 users share
+      // the same real-world anchor for the scene content.
       AFRAME.registerComponent("ar-mode-handler", {
         init() {
           const scene = this.el.sceneEl;
           const splatEl = document.querySelector("[spark-splat]");
+          this.sceneContent = null; // set after DOM ready
+          this.markerBitmap = null;
 
+          // Preload marker image as ImageBitmap for WebXR
+          const img = new Image();
+          img.src = "assets/marker/marker.jpg";
+          img.onload = async () => {
+            this.markerBitmap = await createImageBitmap(img);
+            console.log("AR marker image loaded");
+          };
+
+          // Monkey-patch requestSession to inject image-tracking
+          if (navigator.xr) {
+            const self = this;
+            const origRequest = navigator.xr.requestSession.bind(navigator.xr);
+            navigator.xr.requestSession = async function (mode, options) {
+              if (mode === "immersive-ar" && self.markerBitmap) {
+                options = options || {};
+                if (!options.optionalFeatures) options.optionalFeatures = [];
+                if (!options.optionalFeatures.includes("image-tracking")) {
+                  options.optionalFeatures.push("image-tracking");
+                }
+                options.trackedImages = [
+                  { image: self.markerBitmap, widthInMeters: 0.25 }
+                ];
+              }
+              return origRequest(mode, options);
+            };
+          }
+
+          // Hide splat in AR, restore on exit
           scene.addEventListener("enter-vr", () => {
             if (scene.is("ar-mode")) {
               if (splatEl) splatEl.setAttribute("visible", false);
+              this.sceneContent = document.getElementById("scene-content");
+              // Hide content until marker is found
+              if (this.sceneContent) {
+                this.sceneContent.setAttribute("visible", false);
+              }
             }
           });
 
           scene.addEventListener("exit-vr", () => {
             if (splatEl) splatEl.setAttribute("visible", true);
+            // Reset scene-content to origin
+            if (this.sceneContent) {
+              this.sceneContent.setAttribute("visible", true);
+              this.sceneContent.object3D.position.set(0, 0, 0);
+              this.sceneContent.object3D.quaternion.identity();
+            }
           });
 
-          // Custom AR button — checks WebXR support explicitly
+          // Custom AR button
           if (navigator.xr) {
             navigator.xr.isSessionSupported("immersive-ar").then(supported => {
               if (supported) {
@@ -165,6 +210,32 @@
                 document.body.appendChild(btn);
               }
             });
+          }
+        },
+
+        tick() {
+          const scene = this.el.sceneEl;
+          if (!scene.is("ar-mode")) return;
+
+          // A-Frame stores the current XR frame during rendering
+          const frame = scene.frame;
+          if (!frame || !frame.getImageTrackingResults) return;
+
+          const results = frame.getImageTrackingResults();
+          if (!results || results.length === 0) return;
+
+          for (const result of results) {
+            if (result.trackingState === "tracked" || result.trackingState === "emulated") {
+              const refSpace = scene.renderer.xr.getReferenceSpace();
+              const pose = frame.getPose(result.imageSpace, refSpace);
+              if (pose && this.sceneContent) {
+                const p = pose.transform.position;
+                const q = pose.transform.orientation;
+                this.sceneContent.object3D.position.set(p.x, p.y, p.z);
+                this.sceneContent.object3D.quaternion.set(q.x, q.y, q.z, q.w);
+                this.sceneContent.setAttribute("visible", true);
+              }
+            }
           }
         }
       });
@@ -320,7 +391,7 @@
         debug: false;
       "
       webxr="
-        optionalFeatures: local-floor, dom-overlay, hit-test, hand-tracking;
+        optionalFeatures: local-floor, dom-overlay, hit-test, hand-tracking, image-tracking;
         overlayElement: #overlay;
       "
       ar-mode-handler
@@ -373,74 +444,84 @@
       </a-assets>
 
       <!-- ============================================ -->
-      <!--   GAUSSIAN SPLAT ENVIRONMENT (World Labs)    -->
-      <!--   Rendered natively — no quality loss        -->
+      <!--   SCENE CONTENT — wrapper for AR anchoring   -->
+      <!--   In AR mode, this entity moves to the       -->
+      <!--   tracked image (book) position so all       -->
+      <!--   students see objects in the same spot.      -->
       <!-- ============================================ -->
-      <a-entity
-        spark-splat="url: assets/scene/retro-futuristic-biomedical-space-chamber.spz; scale: 1.0"
-        position="0 1.3 0"
-      ></a-entity>
+      <a-entity id="scene-content">
 
-      <!-- ============================================ -->
-      <!--              LIGHTING                        -->
-      <!--  Reduced — splat has baked lighting.         -->
-      <!--  Low ambient keeps A-Frame objects visible.  -->
-      <!-- ============================================ -->
-      <a-entity light="type: ambient; intensity: 0.4"></a-entity>
-      <a-entity light="type: directional; intensity: 0.6" position="2 4 1"></a-entity>
+        <!-- ============================================ -->
+        <!--   GAUSSIAN SPLAT ENVIRONMENT (World Labs)    -->
+        <!--   Rendered natively — no quality loss        -->
+        <!-- ============================================ -->
+        <a-entity
+          spark-splat="url: assets/scene/retro-futuristic-biomedical-space-chamber.spz; scale: 1.0"
+          position="0 1.3 0"
+        ></a-entity>
 
-      <!-- ============================================ -->
-      <!--    OBJETOS PARTILHADOS (MULTIPLAYER)         -->
-      <!--    Clicar muda a cor para TODOS os alunos    -->
-      <!-- ============================================ -->
+        <!-- ============================================ -->
+        <!--              LIGHTING                        -->
+        <!--  Reduced — splat has baked lighting.         -->
+        <!--  Low ambient keeps A-Frame objects visible.  -->
+        <!-- ============================================ -->
+        <a-entity light="type: ambient; intensity: 0.4"></a-entity>
+        <a-entity light="type: directional; intensity: 0.6" position="2 4 1"></a-entity>
 
-      <!-- Cubo partilhado — esquerda -->
-      <a-entity
-        networked="template:#shared-box-template; persistent:true; networkId:cubo-esq; owner:scene"
-        position="-4 0.6 -5"
-        rotation="0 30 0"
-      ></a-entity>
+        <!-- ============================================ -->
+        <!--    OBJETOS PARTILHADOS (MULTIPLAYER)         -->
+        <!--    Clicar muda a cor para TODOS os alunos    -->
+        <!-- ============================================ -->
 
-      <!-- Cubo partilhado — direita -->
-      <a-entity
-        networked="template:#shared-box-template; persistent:true; networkId:cubo-dir; owner:scene"
-        position="4 0.6 -5"
-        rotation="0 -30 0"
-      ></a-entity>
+        <!-- Cubo partilhado — esquerda -->
+        <a-entity
+          networked="template:#shared-box-template; persistent:true; networkId:cubo-esq; owner:scene"
+          position="-4 0.6 -5"
+          rotation="0 30 0"
+        ></a-entity>
 
-      <!-- Esfera partilhada — centro-atrás -->
-      <a-entity
-        networked="template:#shared-sphere-template; persistent:true; networkId:esfera-part; owner:scene"
-        position="0 0.8 -7"
-      ></a-entity>
+        <!-- Cubo partilhado — direita -->
+        <a-entity
+          networked="template:#shared-box-template; persistent:true; networkId:cubo-dir; owner:scene"
+          position="4 0.6 -5"
+          rotation="0 -30 0"
+        ></a-entity>
 
-      <!-- ============================================ -->
-      <!--          CORAÇÃO 3D + LABEL                  -->
-      <!-- ============================================ -->
+        <!-- Esfera partilhada — centro-atrás -->
+        <a-entity
+          networked="template:#shared-sphere-template; persistent:true; networkId:esfera-part; owner:scene"
+          position="0 0.8 -7"
+        ></a-entity>
 
-      <!-- Label "Heart" — aparece ao apontar -->
-      <a-entity
-        id="heart-label"
-        text="value: Heart; align: center; color: #FFFFFF; width: 4"
-        position="0 2.2 -3"
-        visible="false"
-        billboard
-      ></a-entity>
+        <!-- ============================================ -->
+        <!--          CORAÇÃO 3D + LABEL                  -->
+        <!-- ============================================ -->
 
-      <!-- Coração 3D — rotação contínua + label ao hover -->
-      <a-entity
-        id="heart"
-        class="clickable"
-        obj-model="obj: #heart-obj; mtl: #heart-mtl"
-        material="side: double"
-        position="0 1.2 -3"
-        rotation="0 180 0"
-        scale="0.08 0.08 0.08"
-        animation="property: rotation; to: 0 540 0;
-                   loop: true; dur: 12000; easing: linear"
-        event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
-        event-set__leave="_event: mouseleave; _target: #heart-label; visible: false"
-      ></a-entity>
+        <!-- Label "Heart" — aparece ao apontar -->
+        <a-entity
+          id="heart-label"
+          text="value: Heart; align: center; color: #FFFFFF; width: 4"
+          position="0 2.2 -3"
+          visible="false"
+          billboard
+        ></a-entity>
+
+        <!-- Coração 3D — rotação contínua + label ao hover -->
+        <a-entity
+          id="heart"
+          class="clickable"
+          obj-model="obj: #heart-obj; mtl: #heart-mtl"
+          material="side: double"
+          position="0 1.2 -3"
+          rotation="0 180 0"
+          scale="0.08 0.08 0.08"
+          animation="property: rotation; to: 0 540 0;
+                     loop: true; dur: 12000; easing: linear"
+          event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
+          event-set__leave="_event: mouseleave; _target: #heart-label; visible: false"
+        ></a-entity>
+
+      </a-entity><!-- /scene-content -->
 
       <!-- ============================================ -->
       <!--    JOGADOR — "Camera Rig" (suporte de câmara)-->
