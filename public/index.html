@@ -132,66 +132,87 @@
         }
       });
 
-      // --- AR mode handler: image tracking + hide splat in AR ---
-      // Tracks the Bauhaus book cover so all Quest 3 users share
-      // the same real-world anchor for the scene content.
+      // --- AR mode handler: hit-test tap-to-place ---
+      // In AR, a reticle appears on real surfaces (table, floor).
+      // Student taps (trigger or select) to place the scene there.
+      // Objects stay anchored at that spot.
       AFRAME.registerComponent("ar-mode-handler", {
         init() {
           const scene = this.el.sceneEl;
           const splatEl = document.querySelector("[spark-splat]");
-          this.sceneContent = null; // set after DOM ready
-          this.markerBitmap = null;
+          this.sceneContent = null;
+          this.placed = false;
+          this.hitTestSource = null;
+          this.reticle = null;
+          this._reticlePos = new THREE.Vector3();
+          this._reticleQuat = new THREE.Quaternion();
 
-          // Preload marker image as ImageBitmap for WebXR
-          const img = new Image();
-          img.src = "assets/marker/marker.jpg";
-          img.onload = async () => {
-            this.markerBitmap = await createImageBitmap(img);
-            console.log("AR marker image loaded");
-          };
-
-          // Monkey-patch requestSession to inject image-tracking
-          if (navigator.xr) {
-            const self = this;
-            const origRequest = navigator.xr.requestSession.bind(navigator.xr);
-            navigator.xr.requestSession = async function (mode, options) {
-              if (mode === "immersive-ar" && self.markerBitmap) {
-                options = options || {};
-                if (!options.optionalFeatures) options.optionalFeatures = [];
-                if (!options.optionalFeatures.includes("image-tracking")) {
-                  options.optionalFeatures.push("image-tracking");
-                }
-                options.trackedImages = [
-                  { image: self.markerBitmap, widthInMeters: 0.25 }
-                ];
-              }
-              return origRequest(mode, options);
-            };
-          }
-
-          // Hide splat in AR, restore on exit
+          // --- Enter AR ---
           scene.addEventListener("enter-vr", () => {
-            if (scene.is("ar-mode")) {
-              if (splatEl) splatEl.setAttribute("visible", false);
-              this.sceneContent = document.getElementById("scene-content");
-              // Hide content until marker is found
-              if (this.sceneContent) {
-                this.sceneContent.setAttribute("visible", false);
-              }
+            if (!scene.is("ar-mode")) return;
+            if (splatEl) splatEl.setAttribute("visible", false);
+            this.sceneContent = document.getElementById("scene-content");
+            this.placed = false;
+
+            // Hide scene content until placed
+            if (this.sceneContent) {
+              this.sceneContent.setAttribute("visible", false);
             }
+
+            // Create reticle ring on surfaces
+            this.reticle = document.createElement("a-entity");
+            this.reticle.setAttribute("geometry", "primitive: ring; radiusInner: 0.08; radiusOuter: 0.12");
+            this.reticle.setAttribute("material", "color: #00FF00; shader: flat; opacity: 0.8");
+            this.reticle.setAttribute("rotation", "-90 0 0");
+            this.reticle.setAttribute("visible", false);
+            scene.appendChild(this.reticle);
+
+            // Start hit-test source
+            const session = scene.renderer.xr.getSession();
+            if (session && session.requestHitTestSource) {
+              session.requestReferenceSpace("viewer").then(viewerSpace => {
+                session.requestHitTestSource({ space: viewerSpace }).then(src => {
+                  this.hitTestSource = src;
+                  console.log("Hit-test source ready. Point at a surface and tap to place.");
+                });
+              }).catch(err => console.warn("Hit-test not available:", err));
+            }
+
+            // Listen for select (trigger tap) to place scene
+            session.addEventListener("select", () => {
+              if (!this.placed && this.reticle && this.reticle.getAttribute("visible")) {
+                // Place scene-content at reticle position
+                const pos = this.reticle.object3D.position;
+                const quat = this.reticle.object3D.quaternion;
+                if (this.sceneContent) {
+                  this.sceneContent.object3D.position.copy(pos);
+                  this.sceneContent.object3D.quaternion.copy(quat);
+                  this.sceneContent.setAttribute("visible", true);
+                }
+                this.placed = true;
+                this.reticle.setAttribute("visible", false);
+                console.log("Scene placed at:", pos.x.toFixed(2), pos.y.toFixed(2), pos.z.toFixed(2));
+              }
+            });
           });
 
+          // --- Exit AR ---
           scene.addEventListener("exit-vr", () => {
             if (splatEl) splatEl.setAttribute("visible", true);
-            // Reset scene-content to origin
             if (this.sceneContent) {
               this.sceneContent.setAttribute("visible", true);
               this.sceneContent.object3D.position.set(0, 0, 0);
               this.sceneContent.object3D.quaternion.identity();
             }
+            if (this.reticle && this.reticle.parentNode) {
+              this.reticle.parentNode.removeChild(this.reticle);
+            }
+            this.reticle = null;
+            this.hitTestSource = null;
+            this.placed = false;
           });
 
-          // Custom AR button
+          // --- Custom AR button ---
           if (navigator.xr) {
             navigator.xr.isSessionSupported("immersive-ar").then(supported => {
               if (supported) {
@@ -215,27 +236,26 @@
 
         tick() {
           const scene = this.el.sceneEl;
-          if (!scene.is("ar-mode")) return;
+          if (!scene.is("ar-mode") || this.placed || !this.hitTestSource) return;
 
-          // A-Frame stores the current XR frame during rendering
           const frame = scene.frame;
-          if (!frame || !frame.getImageTrackingResults) return;
+          if (!frame || !frame.getHitTestResults) return;
 
-          const results = frame.getImageTrackingResults();
-          if (!results || results.length === 0) return;
+          const results = frame.getHitTestResults(this.hitTestSource);
+          if (results.length === 0) {
+            if (this.reticle) this.reticle.setAttribute("visible", false);
+            return;
+          }
 
-          for (const result of results) {
-            if (result.trackingState === "tracked" || result.trackingState === "emulated") {
-              const refSpace = scene.renderer.xr.getReferenceSpace();
-              const pose = frame.getPose(result.imageSpace, refSpace);
-              if (pose && this.sceneContent) {
-                const p = pose.transform.position;
-                const q = pose.transform.orientation;
-                this.sceneContent.object3D.position.set(p.x, p.y, p.z);
-                this.sceneContent.object3D.quaternion.set(q.x, q.y, q.z, q.w);
-                this.sceneContent.setAttribute("visible", true);
-              }
-            }
+          const hit = results[0];
+          const refSpace = scene.renderer.xr.getReferenceSpace();
+          const pose = hit.getPose(refSpace);
+          if (pose && this.reticle) {
+            const p = pose.transform.position;
+            const q = pose.transform.orientation;
+            this.reticle.object3D.position.set(p.x, p.y, p.z);
+            this.reticle.object3D.quaternion.set(q.x, q.y, q.z, q.w);
+            this.reticle.setAttribute("visible", true);
           }
         }
       });
@@ -373,7 +393,7 @@
       <ul>
         <li><b>PC:</b> W A S D + rato &nbsp;|&nbsp; clica para interagir</li>
         <li><b>VR:</b> gatilho = clicar &nbsp;|&nbsp; grip = agarrar e mover</li>
-        <li><b>AR:</b> carrega no botão AR (telemóvel compatível)</li>
+        <li><b>AR:</b> botão AR → aponta para mesa → gatilho para colocar</li>
         <li class="highlight">As esferas coloridas são os outros alunos!</li>
         <li>Clica nos cubos/esfera — TODOS veem a mudança</li>
         <li>Coração: aponta para ver "Heart"</li>
@@ -391,7 +411,7 @@
         debug: false;
       "
       webxr="
-        optionalFeatures: local-floor, dom-overlay, hit-test, hand-tracking, image-tracking;
+        optionalFeatures: local-floor, dom-overlay, hit-test, hand-tracking;
         overlayElement: #overlay;
       "
       ar-mode-handler
