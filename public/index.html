@@ -87,8 +87,8 @@
       });
 
       // --- Controller grab: grip button picks up objects ---
-      // Absolute offset: each frame computes exact target position
-      // (controller world pos + grab offset), converted to parent local space.
+      // Absolute offset with NAF pause: prevents network sync from
+      // overriding position during grab. Resumes on release.
       AFRAME.registerComponent("controller-grab", {
         init() {
           this.heldEntity = null;
@@ -96,6 +96,7 @@
           this._targetWorldPos = new THREE.Vector3();
           this._controllerWorldPos = new THREE.Vector3();
           this._invMatrix = new THREE.Matrix4();
+          this._networkedComp = null;
           const el = this.el;
 
           el.addEventListener("gripdown", () => {
@@ -116,17 +117,34 @@
                 target.object3D.getWorldPosition(this._targetWorldPos);
                 this._grabOffset.copy(this._targetWorldPos).sub(this._controllerWorldPos);
 
-                // Take NAF ownership
-                if (NAF.connection && NAF.connection.isConnected()) {
-                  NAF.utils.getNetworkedEntity(target).then(networkedEl => {
-                    NAF.utils.takeOwnership(networkedEl);
-                  }).catch(() => {});
+                // Pause NAF to prevent position overrides during grab
+                this._networkedComp = null;
+                let cursor = target;
+                while (cursor) {
+                  if (cursor.components && cursor.components.networked) {
+                    this._networkedComp = cursor.components.networked;
+                    this._networkedComp.pause();
+                    if (NAF.connection && NAF.connection.isConnected()) {
+                      NAF.utils.takeOwnership(cursor);
+                    }
+                    break;
+                  }
+                  cursor = cursor.parentEl || null;
                 }
               }
             }
           });
 
           el.addEventListener("gripup", () => {
+            if (this.heldEntity) {
+              // Sync final position to A-Frame for NAF broadcast
+              const pos = this.heldEntity.object3D.position;
+              this.heldEntity.setAttribute("position", {x: pos.x, y: pos.y, z: pos.z});
+            }
+            if (this._networkedComp) {
+              this._networkedComp.play();
+              this._networkedComp = null;
+            }
             this.heldEntity = null;
           });
         },
@@ -141,7 +159,7 @@
           // 2. Absolute target world position
           this._targetWorldPos.copy(this._controllerWorldPos).add(this._grabOffset);
 
-          // 3. Convert to parent's local space (full matrix handles scale+rotation+translation)
+          // 3. Convert to parent's local space (full matrix)
           const parent = this.heldEntity.object3D.parent;
           if (parent) {
             parent.updateWorldMatrix(true, false);
@@ -149,13 +167,8 @@
             this._targetWorldPos.applyMatrix4(this._invMatrix);
           }
 
-          // 4. Set position absolutely + sync A-Frame attribute for NAF
+          // 4. Set position directly (no setAttribute during grab)
           this.heldEntity.object3D.position.copy(this._targetWorldPos);
-          this.heldEntity.setAttribute("position", {
-            x: this._targetWorldPos.x,
-            y: this._targetWorldPos.y,
-            z: this._targetWorldPos.z
-          });
         }
       });
 
@@ -176,6 +189,8 @@
           });
         },
         tick(time, delta) {
+          // Only allow thumbstick locomotion in VR (not AR or desktop)
+          if (!this.el.sceneEl.is("vr-mode") || this.el.sceneEl.is("ar-mode")) return;
           if (Math.abs(this._axis[0]) < 0.15 && Math.abs(this._axis[1]) < 0.15) {
             this._snapCooldown = false;
             return;
