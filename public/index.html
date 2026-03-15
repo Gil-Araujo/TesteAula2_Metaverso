@@ -728,6 +728,10 @@
         <!-- === HEART MODEL === -->
         <a-asset-item id="heart-obj" src="assets/heart/HumanHeart_OBJ.obj"></a-asset-item>
         <a-asset-item id="heart-mtl" src="assets/heart/HumanHeart_OBJ.mtl"></a-asset-item>
+
+        <!-- === OBJ_AULA MODEL === -->
+        <a-asset-item id="aula-obj" src="assets/obj_aula/3DModel.obj"></a-asset-item>
+        <a-asset-item id="aula-mtl" src="assets/obj_aula/3DModel.mtl"></a-asset-item>
       </a-assets>
 
       <!-- ============================================ -->
@@ -807,6 +811,38 @@
           <a-entity
             id="heart-label"
             text="value: Heart; align: center; color: #FFFFFF; width: 4"
+            position="0 1 0"
+            visible="false"
+            billboard
+          ></a-entity>
+        </a-entity>
+
+        <!-- ============================================ -->
+        <!--          OBJ_AULA 3D + LABEL                 -->
+        <!-- ============================================ -->
+
+        <!-- 3D Model wrapper — grabbable as one unit -->
+        <a-entity
+          id="aula-wrapper"
+          class="clickable"
+          position="2 1.2 -3"
+          event-set__enter="_event: mouseenter; _target: #aula-label; visible: true"
+          event-set__leave="_event: mouseleave; _target: #aula-label; visible: false"
+        >
+          <!-- 3D Model -->
+          <a-entity
+            id="aula-model"
+            obj-model="obj: #aula-obj; mtl: #aula-mtl"
+            material="side: double"
+            scale="0.08 0.08 0.08"
+            animation="property: rotation; to: 0 360 0;
+                       loop: true; dur: 12000; easing: linear"
+          ></a-entity>
+
+          <!-- Label — child of wrapper, follows when grabbed -->
+          <a-entity
+            id="aula-label"
+            text="value: 3D Model; align: center; color: #FFFFFF; width: 4"
             position="0 1 0"
             visible="false"
             billboard
