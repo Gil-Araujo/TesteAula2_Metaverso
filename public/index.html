@@ -59,6 +59,11 @@
         "https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"
       );
 
+      // 7. Troika-Text (full Unicode support for Portuguese accents)
+      await loadScript(
+        "https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"
+      );
+
       // =====================================================
       //  CUSTOM COMPONENTS
       // =====================================================
@@ -768,6 +773,9 @@
         <!-- === BRAIN MODEL === -->
         <a-asset-item id="brain-obj" src="assets/modelos/Brain_obj/Brain_Model.obj"></a-asset-item>
 
+        <!-- === AMBIENT SOUND === -->
+        <audio id="ambient-sound" src="assets/sound/som.mp3" preload="auto"></audio>
+
       </a-assets>
 
       <!-- ============================================ -->
@@ -777,6 +785,11 @@
       <!--   students see objects in the same spot.      -->
       <!-- ============================================ -->
       <a-entity id="scene-content">
+
+        <!-- ============================================ -->
+        <!--          AMBIENT SOUND (loop)                -->
+        <!-- ============================================ -->
+        <a-entity sound="src: #ambient-sound; autoplay: true; loop: true; volume: 0.5"></a-entity>
 
         <!-- ============================================ -->
         <!--   GAUSSIAN SPLAT ENVIRONMENT (World Labs)    -->
@@ -794,6 +807,16 @@
         <!-- ============================================ -->
         <a-entity light="type: ambient; intensity: 0.4"></a-entity>
         <a-entity light="type: directional; intensity: 0.6" position="2 4 1"></a-entity>
+
+        <!-- ============================================ -->
+        <!--          WELCOME BANNER                      -->
+        <!-- ============================================ -->
+        <a-entity position="0 2.8 -5">
+          <a-entity
+            troika-text="value: Bem-vindas à segunda aula\nde introdução à realidade estendida (XR) e metaverso; color: #FFFFFF; fontSize: 0.12; align: center; maxWidth: 4"
+            position="0 0 0"
+          ></a-entity>
+        </a-entity>
 
         <!-- ============================================ -->
         <!--    OBJETOS PARTILHADOS (MULTIPLAYER)         -->
@@ -847,7 +870,7 @@
           <!-- Label — child of wrapper, follows when grabbed -->
           <a-entity
             id="heart-label"
-            text="value: Coração; align: center; color: #FFFFFF; width: 2"
+            troika-text="value: Coração; color: #FFFFFF; fontSize: 0.08; align: center"
             position="0 0.15 0"
             visible="false"
             billboard
@@ -878,7 +901,7 @@
           <!-- Label — child of wrapper, follows when grabbed -->
           <a-entity
             id="aula-label"
-            text="value: Gaussian Splatting; align: center; color: #FFFFFF; width: 2"
+            troika-text="value: Gaussian Splatting; color: #FFFFFF; fontSize: 0.08; align: center"
             position="0 0.4 0"
             visible="false"
             billboard
@@ -897,14 +920,14 @@
             id="erythrocyte-model"
             class="clickable"
             obj-model="obj: #erythrocyte-obj; mtl: #erythrocyte-mtl"
-            material="side: double"
+            material="color: #CC2222; side: double"
             scale="0.001 0.001 0.001"
             event-set__enter="_event: mouseenter; _target: #erythrocyte-label; visible: true"
             event-set__leave="_event: mouseleave; _target: #erythrocyte-label; visible: false"
           ></a-entity>
           <a-entity
             id="erythrocyte-label"
-            text="value: Eritrócito; align: center; color: #FFFFFF; width: 2"
+            troika-text="value: Eritrócito; color: #FFFFFF; fontSize: 0.08; align: center"
             position="0 0.35 0"
             visible="false"
             billboard
@@ -930,7 +953,7 @@
           ></a-entity>
           <a-entity
             id="skull-label"
-            text="value: Crânio; align: center; color: #FFFFFF; width: 2"
+            troika-text="value: Crânio; color: #FFFFFF; fontSize: 0.08; align: center"
             position="0 0.2 0"
             visible="false"
             billboard
@@ -956,7 +979,7 @@
           ></a-entity>
           <a-entity
             id="brain-label"
-            text="value: Cérebro; align: center; color: #FFFFFF; width: 2"
+            troika-text="value: Cérebro; color: #FFFFFF; fontSize: 0.08; align: center"
             position="0 0.15 0"
             visible="false"
             billboard
