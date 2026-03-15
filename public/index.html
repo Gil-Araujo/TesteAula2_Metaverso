@@ -112,7 +112,11 @@
                 hitEl = obj3d ? obj3d.el : null;
               }
               if (!hitEl) return;
-              const target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
+              let target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
+              // If parent is also .clickable (wrapper pattern), grab wrapper so label follows
+              if (target && target.parentEl && target.parentEl.classList.contains("clickable")) {
+                target = target.parentEl;
+              }
               if (target && target.classList.contains("clickable")) {
                 this.heldEntity = target;
                 const obj = target.object3D;
@@ -813,18 +817,19 @@
           id="heart-wrapper"
           class="clickable"
           position="0 1.2 -3"
-          event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
-          event-set__leave="_event: mouseleave; _target: #heart-label; visible: false"
         >
           <!-- Heart model -->
           <a-entity
             id="heart"
+            class="clickable"
             obj-model="obj: #heart-obj; mtl: #heart-mtl"
             material="side: double"
             rotation="0 180 0"
             scale="0.012 0.012 0.012"
             animation="property: rotation; to: 0 540 0;
                        loop: true; dur: 12000; easing: linear"
+            event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
+            event-set__leave="_event: mouseleave; _target: #heart-label; visible: false"
           ></a-entity>
 
           <!-- Label — child of wrapper, follows when grabbed -->
@@ -846,15 +851,16 @@
           id="aula-wrapper"
           class="clickable"
           position="2 1.2 -3"
-          event-set__enter="_event: mouseenter; _target: #aula-label; visible: true"
-          event-set__leave="_event: mouseleave; _target: #aula-label; visible: false"
         >
           <!-- 3D Model -->
           <a-entity
             id="aula-model"
+            class="clickable"
             obj-model="obj: #aula-obj; mtl: #aula-mtl"
             material="side: double"
             scale="2.25 2.25 2.25"
+            event-set__enter="_event: mouseenter; _target: #aula-label; visible: true"
+            event-set__leave="_event: mouseleave; _target: #aula-label; visible: false"
           ></a-entity>
 
           <!-- Label — child of wrapper, follows when grabbed -->
@@ -874,14 +880,15 @@
           id="erythrocyte-wrapper"
           class="clickable"
           position="-2 1.2 -3"
-          event-set__enter="_event: mouseenter; _target: #erythrocyte-label; visible: true"
-          event-set__leave="_event: mouseleave; _target: #erythrocyte-label; visible: false"
         >
           <a-entity
             id="erythrocyte-model"
+            class="clickable"
             obj-model="obj: #erythrocyte-obj; mtl: #erythrocyte-mtl"
             material="side: double"
             scale="0.5 0.5 0.5"
+            event-set__enter="_event: mouseenter; _target: #erythrocyte-label; visible: true"
+            event-set__leave="_event: mouseleave; _target: #erythrocyte-label; visible: false"
           ></a-entity>
           <a-entity
             id="erythrocyte-label"
@@ -899,14 +906,15 @@
           id="skull-wrapper"
           class="clickable"
           position="-4 1.2 -3"
-          event-set__enter="_event: mouseenter; _target: #skull-label; visible: true"
-          event-set__leave="_event: mouseleave; _target: #skull-label; visible: false"
         >
           <a-entity
             id="skull-model"
+            class="clickable"
             obj-model="obj: #skull-obj; mtl: #skull-mtl"
             material="side: double"
             scale="0.012 0.012 0.012"
+            event-set__enter="_event: mouseenter; _target: #skull-label; visible: true"
+            event-set__leave="_event: mouseleave; _target: #skull-label; visible: false"
           ></a-entity>
           <a-entity
             id="skull-label"
@@ -924,14 +932,15 @@
           id="brain-wrapper"
           class="clickable"
           position="4 1.2 -3"
-          event-set__enter="_event: mouseenter; _target: #brain-label; visible: true"
-          event-set__leave="_event: mouseleave; _target: #brain-label; visible: false"
         >
           <a-entity
             id="brain-model"
+            class="clickable"
             obj-model="obj: #brain-obj"
             material="color: #D4C4B0; side: double"
             scale="0.13 0.13 0.13"
+            event-set__enter="_event: mouseenter; _target: #brain-label; visible: true"
+            event-set__leave="_event: mouseleave; _target: #brain-label; visible: false"
           ></a-entity>
           <a-entity
             id="brain-label"
