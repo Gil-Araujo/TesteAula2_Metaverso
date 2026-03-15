@@ -729,9 +729,6 @@
         <a-asset-item id="heart-obj" src="assets/heart/HumanHeart_OBJ.obj"></a-asset-item>
         <a-asset-item id="heart-mtl" src="assets/heart/HumanHeart_OBJ.mtl"></a-asset-item>
 
-        <!-- === OBJ_AULA MODEL === -->
-        <a-asset-item id="aula-obj" src="assets/obj_aula/3DModel.obj"></a-asset-item>
-        <a-asset-item id="aula-mtl" src="assets/obj_aula/3DModel.mtl"></a-asset-item>
       </a-assets>
 
       <!-- ============================================ -->
@@ -832,9 +829,9 @@
           <!-- 3D Model -->
           <a-entity
             id="aula-model"
-            obj-model="obj: #aula-obj; mtl: #aula-mtl"
+            obj-model="obj: url(assets/obj_aula/3DModel.obj); mtl: url(assets/obj_aula/3DModel.mtl)"
             material="side: double"
-            scale="1 1 1"
+            scale="5 5 5"
             animation="property: rotation; to: 0 360 0;
                        loop: true; dur: 12000; easing: linear"
           ></a-entity>
