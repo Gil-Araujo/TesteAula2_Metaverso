@@ -248,7 +248,7 @@
           const audio = document.getElementById("ambient-sound");
           if (!audio) return;
           audio.loop = true;
-          audio.volume = 0.3;
+          audio.volume = 0.15;
           this.el.sceneEl.addEventListener("enter-vr", () => { audio.play(); });
           this.el.sceneEl.addEventListener("exit-vr", () => { audio.pause(); });
         }
@@ -933,7 +933,7 @@
           <a-entity
             id="skull-label"
             troika-text="value: Crânio; color: #FFFFFF; fontSize: 0.08; align: center"
-            position="0 0.2 0"
+            position="0 0.5 0"
             visible="false"
             billboard
           ></a-entity>
@@ -959,7 +959,7 @@
           <a-entity
             id="brain-label"
             troika-text="value: Cérebro; color: #FFFFFF; fontSize: 0.08; align: center"
-            position="0 0.15 0"
+            position="0 0.3 0"
             visible="false"
             billboard
           ></a-entity>
