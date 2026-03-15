@@ -127,6 +127,14 @@
                   cursor = cursor.parentEl || null;
                 }
 
+                // Pause any animations so they don't fight with attach()
+                target.querySelectorAll("[animation]").forEach(c => {
+                  if (c.components.animation) c.setAttribute("animation", "enabled", false);
+                });
+                if (target.components.animation) {
+                  target.setAttribute("animation", "enabled", false);
+                }
+
                 // Re-parent object to controller (preserves world transform).
                 // Object now follows the hand automatically — no tick needed.
                 el.object3D.attach(obj);
@@ -144,6 +152,14 @@
               // Sync final position to A-Frame for NAF broadcast
               const pos = obj.position;
               this.heldEntity.setAttribute("position", {x: pos.x, y: pos.y, z: pos.z});
+
+              // Resume animations in subtree
+              this.heldEntity.querySelectorAll("[animation]").forEach(c => {
+                if (c.components.animation) c.setAttribute("animation", "enabled", true);
+              });
+              if (this.heldEntity.components.animation) {
+                this.heldEntity.setAttribute("animation", "enabled", true);
+              }
 
               // Resume NAF
               if (this._networkedComp) {
@@ -727,7 +743,7 @@
         <!--   Rendered natively — no quality loss        -->
         <!-- ============================================ -->
         <a-entity
-          spark-splat="url: assets/scene/enhanced_splat_X.ply; scale: 1.0"
+          spark-splat="url: assets/scene/retro_futuristic_biomedical.ply; scale: 1.0"
           position="0 -0.15 0"
         ></a-entity>
 
@@ -768,29 +784,34 @@
         <!--          CORAÇÃO 3D + LABEL                  -->
         <!-- ============================================ -->
 
-        <!-- Label "Heart" — aparece ao apontar -->
+        <!-- Coração 3D + Label wrapper — grabbable as one unit -->
         <a-entity
-          id="heart-label"
-          text="value: Heart; align: center; color: #FFFFFF; width: 4"
-          position="0 2.2 -3"
-          visible="false"
-          billboard
-        ></a-entity>
-
-        <!-- Coração 3D — rotação contínua + label ao hover -->
-        <a-entity
-          id="heart"
+          id="heart-wrapper"
           class="clickable"
-          obj-model="obj: #heart-obj; mtl: #heart-mtl"
-          material="side: double"
           position="0 1.2 -3"
-          rotation="0 180 0"
-          scale="0.08 0.08 0.08"
-          animation="property: rotation; to: 0 540 0;
-                     loop: true; dur: 12000; easing: linear"
           event-set__enter="_event: mouseenter; _target: #heart-label; visible: true"
           event-set__leave="_event: mouseleave; _target: #heart-label; visible: false"
-        ></a-entity>
+        >
+          <!-- Heart model -->
+          <a-entity
+            id="heart"
+            obj-model="obj: #heart-obj; mtl: #heart-mtl"
+            material="side: double"
+            rotation="0 180 0"
+            scale="0.08 0.08 0.08"
+            animation="property: rotation; to: 0 540 0;
+                       loop: true; dur: 12000; easing: linear"
+          ></a-entity>
+
+          <!-- Label — child of wrapper, follows when grabbed -->
+          <a-entity
+            id="heart-label"
+            text="value: Heart; align: center; color: #FFFFFF; width: 4"
+            position="0 1 0"
+            visible="false"
+            billboard
+          ></a-entity>
+        </a-entity>
 
       </a-entity><!-- /scene-content -->
 
