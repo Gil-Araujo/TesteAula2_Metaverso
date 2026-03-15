@@ -234,11 +234,23 @@
           } else {
             // Snap turn (right stick X)
             if (!this._snapCooldown && Math.abs(this._axis[0]) > 0.6) {
-              const angle = this._axis[0] > 0 ? 45 : -45;
+              const angle = this._axis[0] > 0 ? -45 : 45;
               rig.object3D.rotation.y += THREE.MathUtils.degToRad(angle);
               this._snapCooldown = true;
             }
           }
+        }
+      });
+
+      // --- VR-only ambient sound: play on enter-vr, pause on exit-vr ---
+      AFRAME.registerComponent("vr-sound", {
+        init() {
+          this.el.sceneEl.addEventListener("enter-vr", () => {
+            this.el.components.sound.playSound();
+          });
+          this.el.sceneEl.addEventListener("exit-vr", () => {
+            this.el.components.sound.pauseSound();
+          });
         }
       });
 
@@ -762,10 +774,6 @@
         <a-asset-item id="aula-obj" src="assets/obj_aula/3DModel.obj"></a-asset-item>
         <a-asset-item id="aula-mtl" src="assets/obj_aula/3DModel.mtl"></a-asset-item>
 
-        <!-- === ERYTHROCYTE MODEL === -->
-        <a-asset-item id="erythrocyte-obj" src="assets/modelos/Erythrocyte/Erythrocyte_models.obj"></a-asset-item>
-        <a-asset-item id="erythrocyte-mtl" src="assets/modelos/Erythrocyte/Erythrocyte_models.mtl"></a-asset-item>
-
         <!-- === SKULL MODEL === -->
         <a-asset-item id="skull-obj" src="assets/modelos/skull/Skull.obj"></a-asset-item>
         <a-asset-item id="skull-mtl" src="assets/modelos/skull/Skull.mtl"></a-asset-item>
@@ -789,7 +797,7 @@
         <!-- ============================================ -->
         <!--          AMBIENT SOUND (loop)                -->
         <!-- ============================================ -->
-        <a-entity sound="src: #ambient-sound; autoplay: true; loop: true; volume: 0.5"></a-entity>
+        <a-entity sound="src: #ambient-sound; loop: true; volume: 0.5; positional: false" vr-sound></a-entity>
 
         <!-- ============================================ -->
         <!--   GAUSSIAN SPLAT ENVIRONMENT (World Labs)    -->
@@ -811,7 +819,7 @@
         <!-- ============================================ -->
         <!--          WELCOME BANNER                      -->
         <!-- ============================================ -->
-        <a-entity position="0 2.8 -5">
+        <a-entity position="0 4.3 -5">
           <a-entity
             troika-text="value: Bem-vindas à segunda aula\nde introdução à realidade estendida (XR) e metaverso; color: #FFFFFF; fontSize: 0.12; align: center; maxWidth: 4"
             position="0 0 0"
@@ -903,32 +911,6 @@
             id="aula-label"
             troika-text="value: Gaussian Splatting; color: #FFFFFF; fontSize: 0.08; align: center"
             position="0 0.4 0"
-            visible="false"
-            billboard
-          ></a-entity>
-        </a-entity>
-
-        <!-- ============================================ -->
-        <!--          ERYTHROCYTE 3D + LABEL              -->
-        <!-- ============================================ -->
-        <a-entity
-          id="erythrocyte-wrapper"
-          class="clickable"
-          position="-2 1.2 -3"
-        >
-          <a-entity
-            id="erythrocyte-model"
-            class="clickable"
-            obj-model="obj: #erythrocyte-obj; mtl: #erythrocyte-mtl"
-            material="color: #CC2222; side: double"
-            scale="0.001 0.001 0.001"
-            event-set__enter="_event: mouseenter; _target: #erythrocyte-label; visible: true"
-            event-set__leave="_event: mouseleave; _target: #erythrocyte-label; visible: false"
-          ></a-entity>
-          <a-entity
-            id="erythrocyte-label"
-            troika-text="value: Eritrócito; color: #FFFFFF; fontSize: 0.08; align: center"
-            position="0 0.35 0"
             visible="false"
             billboard
           ></a-entity>
