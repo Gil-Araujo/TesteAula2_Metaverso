@@ -103,7 +103,15 @@
             const intersections = raycaster.intersections;
             if (intersections.length > 0) {
               const hit = intersections[0];
-              const hitEl = hit.object.el;
+              // Walk up THREE.js parent chain to find the A-Frame entity
+              // (OBJ model child meshes don't have .el directly)
+              let hitEl = hit.object.el;
+              if (!hitEl) {
+                let obj3d = hit.object;
+                while (obj3d && !obj3d.el) obj3d = obj3d.parent;
+                hitEl = obj3d ? obj3d.el : null;
+              }
+              if (!hitEl) return;
               const target = hitEl.closest ? hitEl.closest(".clickable") : hitEl;
               if (target && target.classList.contains("clickable")) {
                 this.heldEntity = target;
@@ -733,6 +741,17 @@
         <a-asset-item id="aula-obj" src="assets/obj_aula/3DModel.obj"></a-asset-item>
         <a-asset-item id="aula-mtl" src="assets/obj_aula/3DModel.mtl"></a-asset-item>
 
+        <!-- === ERYTHROCYTE MODEL === -->
+        <a-asset-item id="erythrocyte-obj" src="assets/modelos/Erythrocyte/Erythrocyte_models.obj"></a-asset-item>
+        <a-asset-item id="erythrocyte-mtl" src="assets/modelos/Erythrocyte/Erythrocyte_models.mtl"></a-asset-item>
+
+        <!-- === SKULL MODEL === -->
+        <a-asset-item id="skull-obj" src="assets/modelos/skull/Skull.obj"></a-asset-item>
+        <a-asset-item id="skull-mtl" src="assets/modelos/skull/Skull.mtl"></a-asset-item>
+
+        <!-- === BRAIN MODEL === -->
+        <a-asset-item id="brain-obj" src="assets/modelos/Brain_obj/Brain_Model.obj"></a-asset-item>
+
       </a-assets>
 
       <!-- ============================================ -->
@@ -842,6 +861,81 @@
           <a-entity
             id="aula-label"
             text="value: 3D Model; align: center; color: #FFFFFF; width: 4"
+            position="0 1 0"
+            visible="false"
+            billboard
+          ></a-entity>
+        </a-entity>
+
+        <!-- ============================================ -->
+        <!--          ERYTHROCYTE 3D + LABEL              -->
+        <!-- ============================================ -->
+        <a-entity
+          id="erythrocyte-wrapper"
+          class="clickable"
+          position="-2 1.2 -3"
+          event-set__enter="_event: mouseenter; _target: #erythrocyte-label; visible: true"
+          event-set__leave="_event: mouseleave; _target: #erythrocyte-label; visible: false"
+        >
+          <a-entity
+            id="erythrocyte-model"
+            obj-model="obj: #erythrocyte-obj; mtl: #erythrocyte-mtl"
+            material="side: double"
+            scale="0.5 0.5 0.5"
+          ></a-entity>
+          <a-entity
+            id="erythrocyte-label"
+            text="value: Erythrocyte; align: center; color: #FFFFFF; width: 4"
+            position="0 1 0"
+            visible="false"
+            billboard
+          ></a-entity>
+        </a-entity>
+
+        <!-- ============================================ -->
+        <!--          SKULL 3D + LABEL                    -->
+        <!-- ============================================ -->
+        <a-entity
+          id="skull-wrapper"
+          class="clickable"
+          position="-4 1.2 -3"
+          event-set__enter="_event: mouseenter; _target: #skull-label; visible: true"
+          event-set__leave="_event: mouseleave; _target: #skull-label; visible: false"
+        >
+          <a-entity
+            id="skull-model"
+            obj-model="obj: #skull-obj; mtl: #skull-mtl"
+            material="side: double"
+            scale="0.15 0.15 0.15"
+          ></a-entity>
+          <a-entity
+            id="skull-label"
+            text="value: Skull; align: center; color: #FFFFFF; width: 4"
+            position="0 1 0"
+            visible="false"
+            billboard
+          ></a-entity>
+        </a-entity>
+
+        <!-- ============================================ -->
+        <!--          BRAIN 3D + LABEL                    -->
+        <!-- ============================================ -->
+        <a-entity
+          id="brain-wrapper"
+          class="clickable"
+          position="4 1.2 -3"
+          event-set__enter="_event: mouseenter; _target: #brain-label; visible: true"
+          event-set__leave="_event: mouseleave; _target: #brain-label; visible: false"
+        >
+          <a-entity
+            id="brain-model"
+            obj-model="obj: #brain-obj"
+            material="color: #E8B4B8; side: double"
+            scale="3 3 3"
+          ></a-entity>
+          <a-entity
+            id="brain-label"
+            text="value: Brain; align: center; color: #FFFFFF; width: 4"
             position="0 1 0"
             visible="false"
             billboard
