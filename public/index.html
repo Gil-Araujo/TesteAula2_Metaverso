@@ -237,6 +237,20 @@
         }
       });
 
+      // Intercept getUserMedia to capture audio stream for push-to-talk
+      (function() {
+        const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = function(c) {
+          return origGUM(c).then(stream => {
+            if (c && c.audio) {
+              stream.getAudioTracks().forEach(t => { t.enabled = false; });
+              window._pttStream = stream;
+            }
+            return stream;
+          });
+        };
+      })();
+
       // --- Push-to-talk: hold A button (VR) or V key (desktop) ---
       // Mic starts muted. Audio is only transmitted while the button is held.
       AFRAME.registerComponent("push-to-talk", {
@@ -246,13 +260,10 @@
           // After NAF connects, find the local audio stream and mute it
           const sceneEl = this.el.sceneEl;
           const muteOnConnect = () => {
-            if (typeof easyrtc !== "undefined" && easyrtc.getLocalStream) {
-              const stream = easyrtc.getLocalStream();
-              if (stream) {
-                this._stream = stream;
-                stream.getAudioTracks().forEach(t => { t.enabled = false; });
-                return;
-              }
+            if (window._pttStream) {
+              this._stream = window._pttStream;
+              this._stream.getAudioTracks().forEach(t => { t.enabled = false; });
+              return;
             }
             // Stream not ready yet — retry
             setTimeout(muteOnConnect, 500);
@@ -273,6 +284,7 @@
         },
 
         _setMic(on) {
+          if (!this._stream) this._stream = window._pttStream || null;
           if (!this._stream) return;
           this._stream.getAudioTracks().forEach(t => { t.enabled = on; });
         }
@@ -835,8 +847,8 @@
           <!-- Label — child of wrapper, follows when grabbed -->
           <a-entity
             id="heart-label"
-            text="value: Heart; align: center; color: #FFFFFF; width: 4"
-            position="0 1 0"
+            text="value: Coração; align: center; color: #FFFFFF; width: 2"
+            position="0 0.15 0"
             visible="false"
             billboard
           ></a-entity>
@@ -866,8 +878,8 @@
           <!-- Label — child of wrapper, follows when grabbed -->
           <a-entity
             id="aula-label"
-            text="value: 3D Model; align: center; color: #FFFFFF; width: 4"
-            position="0 1 0"
+            text="value: Gaussian Splatting; align: center; color: #FFFFFF; width: 2"
+            position="0 0.4 0"
             visible="false"
             billboard
           ></a-entity>
@@ -886,14 +898,14 @@
             class="clickable"
             obj-model="obj: #erythrocyte-obj; mtl: #erythrocyte-mtl"
             material="side: double"
-            scale="0.5 0.5 0.5"
+            scale="0.001 0.001 0.001"
             event-set__enter="_event: mouseenter; _target: #erythrocyte-label; visible: true"
             event-set__leave="_event: mouseleave; _target: #erythrocyte-label; visible: false"
           ></a-entity>
           <a-entity
             id="erythrocyte-label"
-            text="value: Erythrocyte; align: center; color: #FFFFFF; width: 4"
-            position="0 1 0"
+            text="value: Eritrócito; align: center; color: #FFFFFF; width: 2"
+            position="0 0.35 0"
             visible="false"
             billboard
           ></a-entity>
@@ -912,14 +924,14 @@
             class="clickable"
             obj-model="obj: #skull-obj; mtl: #skull-mtl"
             material="side: double"
-            scale="0.012 0.012 0.012"
+            scale="0.036 0.036 0.036"
             event-set__enter="_event: mouseenter; _target: #skull-label; visible: true"
             event-set__leave="_event: mouseleave; _target: #skull-label; visible: false"
           ></a-entity>
           <a-entity
             id="skull-label"
-            text="value: Skull; align: center; color: #FFFFFF; width: 4"
-            position="0 1 0"
+            text="value: Crânio; align: center; color: #FFFFFF; width: 2"
+            position="0 0.2 0"
             visible="false"
             billboard
           ></a-entity>
@@ -944,8 +956,8 @@
           ></a-entity>
           <a-entity
             id="brain-label"
-            text="value: Brain; align: center; color: #FFFFFF; width: 4"
-            position="0 1 0"
+            text="value: Cérebro; align: center; color: #FFFFFF; width: 2"
+            position="0 0.15 0"
             visible="false"
             billboard
           ></a-entity>
