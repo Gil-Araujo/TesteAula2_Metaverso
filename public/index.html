@@ -242,15 +242,15 @@
         }
       });
 
-      // --- VR-only ambient sound: play on enter-vr, pause on exit-vr ---
+      // --- VR-only ambient sound: play HTML <audio> on enter-vr (no AudioContext) ---
       AFRAME.registerComponent("vr-sound", {
         init() {
-          this.el.sceneEl.addEventListener("enter-vr", () => {
-            this.el.components.sound.playSound();
-          });
-          this.el.sceneEl.addEventListener("exit-vr", () => {
-            this.el.components.sound.pauseSound();
-          });
+          const audio = document.getElementById("ambient-sound");
+          if (!audio) return;
+          audio.loop = true;
+          audio.volume = 0.3;
+          this.el.sceneEl.addEventListener("enter-vr", () => { audio.play(); });
+          this.el.sceneEl.addEventListener("exit-vr", () => { audio.pause(); });
         }
       });
 
@@ -792,12 +792,9 @@
       <!--   tracked image (book) position so all       -->
       <!--   students see objects in the same spot.      -->
       <!-- ============================================ -->
-      <a-entity id="scene-content">
+      <a-entity id="scene-content" vr-sound>
 
-        <!-- ============================================ -->
-        <!--          AMBIENT SOUND (disabled — conflicts with WebRTC mic) -->
-        <!-- ============================================ -->
-        <!-- <a-entity sound="src: #ambient-sound; loop: true; volume: 0.5; positional: false" vr-sound></a-entity> -->
+        <!-- ambient sound is controlled by vr-sound component on scene-content -->
 
         <!-- ============================================ -->
         <!--   GAUSSIAN SPLAT ENVIRONMENT (World Labs)    -->
